@@ -1,3 +1,42 @@
+## v1.2.0 — Production Readiness + Full Test Coverage (2025-12-11)
+
+### Added
+- **Event Normalizer Module** with inline LLM classification and entity extraction
+- **Complete E2E Test Suite** covering Gmail webhook → Customer/Quote creation
+- **Enhanced Monitoring**: Error persistence (ErrorLog model), fail-safe audit, Slack alerts
+- **Health Endpoints**: `/admin/health`, `/admin/health/deep`, `/admin/ready`
+- **Structured JSON Logging** with UUID serialization and context injection
+- **Integration Stubs**: LLM service, WhatsApp enqueuing, OneDrive enqueuing
+
+### Changed
+- **Database Models**: Added nullable fields (RawEvent.flow_id, AuditLog.tenant_id/flow_id)
+- **Notification Model**: Added `payload` (JSON) and `retry_count` (Integer) fields
+- **Tenant Model**: Added `status` and `active_flows` fields
+- **ExternalToken Model**: Added `provider`, `external_id`, `data` fields
+- **Customer Model**: Made `flow_id` nullable for cross-flow management
+
+### Fixed
+- **Quote Variable Scoping Bug** in preventivi_service (UnboundLocalError)
+- **UUID Serialization** in JSON logger for proper log formatting
+- **Mock Patching** in tests to target correct import locations
+- **OneDrive Action ID Generation** to prevent primary key conflicts
+- **Notification Enqueuing** to properly create database records
+- **Test Database Schema** creation/teardown for SQLite in-memory
+
+### Testing
+- ✅ 4/4 tests passing
+- E2E test: Complete pipeline validation
+- Unit tests: Monitoring helpers (audit, errors, logging)
+- SQLite in-memory database support
+- Comprehensive mocking of external dependencies
+
+### Documentation
+- Added IMPLEMENTATION_SUMMARY.md with architecture overview
+- Updated copilot instructions with full implementation details
+- Created OpenAPI/Postman collection for health endpoints
+
+---
+
 ## v1.1.0 — HealthCheckSuite + TenantRegistry Implemented
 - Added /health and /health/deep endpoints for system diagnostics.
 - Deep health check covers DB, Gmail, OneDrive, WhatsApp, Scheduler.

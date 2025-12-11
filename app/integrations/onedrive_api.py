@@ -107,9 +107,10 @@ async def enqueue_excel_update(quote: Quote) -> None:
     """
     Enqueue an Excel update action for a quote.
     """
+    from uuid import uuid4
     async with SessionLocal() as db:
         action = QuoteDocumentAction(
-            id=str(quote.id),
+            id=str(uuid4()),  # Generate new ID for action
             tenant_id=str(quote.tenant_id),
             quote_id=str(quote.id),
             payload={"quote_id": str(quote.id)},
@@ -118,6 +119,7 @@ async def enqueue_excel_update(quote: Quote) -> None:
         db.add(action)
         await db.commit()
         await db.refresh(action)
+        log("INFO", f"Excel update enqueued for quote {quote.id}", module="onedrive_api")
         await audit_event("onedrive_excel_enqueued", str(quote.tenant_id), getattr(quote, "flow_id", None), {"quote_id": str(quote.id)})
         log("INFO", f"Excel update enqueued for quote {quote.id}", module="onedrive_api", tenant_id=str(quote.tenant_id))
 
@@ -127,3 +129,13 @@ async def process_excel_update_queue() -> None:
     """
     # To be implemented in scheduler jobs
     pass
+
+
+class OneDriveConnector:
+    """High-level helper used by services to enqueue OneDrive excel updates."""
+    def __init__(self):
+        pass
+
+    async def enqueue_excel_update(self, quote: Quote) -> None:
+        await enqueue_excel_update(quote)
+

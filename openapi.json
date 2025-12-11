@@ -1,0 +1,59 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Edilcos Automation Backend",
+    "version": "1.0.0",
+    "description": "OpenAPI specification for health and basic admin endpoints"
+  },
+  "servers": [
+    { "url": "http://localhost:9100", "description": "Local development" },
+    { "url": "http://localhost:8000", "description": "Alt local port" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Shallow health",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "healthy" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/deep": {
+      "get": {
+        "summary": "Deep readiness",
+        "operationId": "getHealthDeep",
+        "responses": {
+          "200": {
+            "description": "Ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ready" }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready"
+          }
+        }
+      }
+    }
+  }
+}

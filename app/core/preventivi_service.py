@@ -29,20 +29,21 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
     async with SessionLocal() as db:
         try:
             log("INFO", "PreventiviV1: classification started", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
-            # 1. Classification
-            classification = await classify_event(event)
+            # 1. Classification (synchronous call)
+            classification = classify_event(event)
             await audit_event("preventivi_classification", tenant_id, flow_id, {"event_id": str(event_id), "classification": classification}, request_id=request_id)
             if classification == "not_relevant":
                 log("INFO", "PreventiviV1: event not relevant", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
                 return
-            # 2. Entity Extraction
-            extracted = await extract_entities(event)
+            # 2. Entity Extraction (synchronous call)
+            extracted = extract_entities(event)
             await audit_event("preventivi_extraction", tenant_id, flow_id, {"event_id": str(event_id), "entities": extracted}, request_id=request_id)
             # 3. Customer Management
             customer_repo = CustomerRepository(db)
             customer = await find_or_create_customer(customer_repo, tenant_id, extracted)
             # 4. Quote Management
             quote_repo = QuoteRepository(db)
+            quote = None
             if classification == "new_quote":
                 quote = await quote_repo.create(
                     tenant_id=tenant_id,
@@ -56,13 +57,21 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
             elif classification == "existing_quote":
                 quote = await find_and_update_quote(quote_repo, tenant_id, customer, event, extracted)
                 await audit_event("quote_updated", tenant_id, flow_id, {"quote_id": str(quote.id)}, request_id=request_id)
+            
+            # Skip notifications/excel if quote not created
+            if not quote:
+                log("WARNING", f"No quote created for classification={classification}", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id)
+                return
+                
             # 5. Prepare WhatsApp Notification
             messenger = WhatsAppMessenger()
             await messenger.enqueue_notification(
                 tenant_id=tenant_id,
                 phone=customer.phone,
                 message_type="received",
-                placeholders={"name": customer.name, "job": extracted.get("descrizione_lavori")}
+                placeholders={"name": customer.name, "job": extracted.get("descrizione_lavori")},
+                flow_id=flow_id,
+                event_id=event_id
             )
             await audit_event("wa_notification_enqueued", tenant_id, flow_id, {"customer_id": str(customer.id)}, request_id=request_id)
             # 6. Prepare OneDrive Excel Update

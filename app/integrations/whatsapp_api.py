@@ -84,3 +84,47 @@ def build_payload(notification: Notification) -> Dict[str, Any]:
             }
         }
     return {}
+
+
+class WhatsAppMessenger:
+    """High-level helper used by services to enqueue/send WhatsApp messages."""
+    def __init__(self):
+        pass
+
+    async def enqueue_notification(self, tenant_id: str, phone: str, message_type: str, placeholders: dict | None = None, flow_id: str = "preventivi_v1", event_id = None) -> None:
+        """
+        Create a Notification record in the database for async processing.
+
+        Args:
+            tenant_id: Tenant identifier
+            phone: Recipient phone number
+            message_type: Logical message type (e.g., 'received')
+            placeholders: Template placeholders
+            flow_id: Flow identifier
+            event_id: NormalizedEvent ID
+        """
+        from uuid import uuid4
+        from app.db.session import SessionLocal
+        from app.db.models import Notification
+        
+        message = f"Ciao {placeholders.get('name', '')}, abbiamo ricevuto la richiesta: {placeholders.get('job', '')}" if placeholders else "Messaggio ricevuto"
+        
+        # If event_id not provided, generate a dummy UUID
+        if event_id is None:
+            event_id = uuid4()
+        
+        async with SessionLocal() as db:
+            notification = Notification(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                flow_id=flow_id,
+                event_id=event_id,
+                channel="whatsapp",
+                message=message,
+                payload={"type": "text", "phone": phone, "message": message},
+                status="pending",
+            )
+            db.add(notification)
+            await db.commit()
+            await db.refresh(notification)
+            log("INFO", f"Notification enqueued: {notification.id}", module="whatsapp_api")

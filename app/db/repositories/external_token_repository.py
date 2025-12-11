@@ -32,6 +32,10 @@ class ExternalTokenRepository:
         result = await self.db.execute(select(ExternalToken).where(ExternalToken.tenant_id == tenant_id))
         return result.scalars().all()
 
+    async def list_by_external_id(self, external_id: str) -> List[ExternalToken]:
+        result = await self.db.execute(select(ExternalToken).where(ExternalToken.external_id == external_id))
+        return result.scalars().all()
+
     async def update(self, token_id: UUID, **kwargs) -> Optional[ExternalToken]:
         ext_token = await self.get(token_id)
         if not ext_token:

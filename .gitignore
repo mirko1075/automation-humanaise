@@ -1,0 +1,7 @@
+local-db
+local-db/.env
+
+.venv
+__pycache__/
+*.pyc
+instance/

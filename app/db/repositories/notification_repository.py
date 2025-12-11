@@ -34,6 +34,11 @@ class NotificationRepository:
         result = await self.db.execute(select(Notification).where(Notification.tenant_id == tenant_id))
         return result.scalars().all()
 
+    async def list_pending_or_retry(self) -> List[Notification]:
+        # Return notifications that are pending or marked for retry
+        result = await self.db.execute(select(Notification).where(Notification.status.in_(["pending", "retry"])))
+        return result.scalars().all()
+
     async def update(self, notification_id: UUID, **kwargs) -> Optional[Notification]:
         notification = await self.get(notification_id)
         if not notification:

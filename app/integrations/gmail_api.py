@@ -6,6 +6,7 @@ import base64
 import email
 import aiohttp
 from typing import Dict, Any, List, Optional
+from app.monitoring.errors import record_error
 
 # Placeholder for Google API client setup
 # In production, use google-auth, google-api-python-client, etc.
@@ -23,7 +24,16 @@ async def fetch_message(message_id: str, access_token: str) -> Dict[str, Any]:
     headers = {"Authorization": f"Bearer {access_token}"}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as resp:
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except Exception as exc:
+                tb = None
+                try:
+                    tb = exc.__traceback__
+                except Exception:
+                    tb = None
+                await record_error("gmail_api", "fetch_message", f"Gmail API request failed: {exc}", details={"message_id": message_id}, stacktrace=None)
+                raise
             data = await resp.json()
             raw = data.get("raw")
             if not raw:
