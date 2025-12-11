@@ -96,7 +96,7 @@ class OneDriveProvider(FileStorageProvider):
                 details={"error": str(exc), "traceback": tb}
             )
     
-    async def read_file(self, path: str) -> bytes:
+    def read_file(self, path: str) -> bytes:
         """
         Read file from OneDrive.
         
@@ -109,7 +109,7 @@ class OneDriveProvider(FileStorageProvider):
             "Use Microsoft Graph API directly for file downloads."
         )
     
-    async def write_file(self, path: str, data: bytes) -> FileOperationResult:
+    def write_file(self, path: str, data: bytes) -> FileOperationResult:
         """
         Write file to OneDrive.
         
@@ -122,7 +122,7 @@ class OneDriveProvider(FileStorageProvider):
             "Use Microsoft Graph API directly for file uploads."
         )
     
-    async def file_exists(self, path: str) -> bool:
+    def file_exists(self, path: str) -> bool:
         """
         Check if file exists in OneDrive.
         
@@ -135,7 +135,7 @@ class OneDriveProvider(FileStorageProvider):
             "Use Microsoft Graph API directly."
         )
     
-    async def get_metadata(self, path: str) -> FileMetadata:
+    def get_metadata(self, path: str) -> FileMetadata:
         """
         Get file metadata from OneDrive.
         
@@ -146,7 +146,7 @@ class OneDriveProvider(FileStorageProvider):
             "Use Microsoft Graph API directly."
         )
     
-    async def list_files(self, directory: str) -> List[FileMetadata]:
+    def list_files(self, directory: str) -> List[FileMetadata]:
         """
         List files in OneDrive directory.
         
@@ -159,7 +159,7 @@ class OneDriveProvider(FileStorageProvider):
             "Use Microsoft Graph API directly."
         )
     
-    async def delete_file(self, path: str) -> FileOperationResult:
+    def delete_file(self, path: str) -> FileOperationResult:
         """
         Delete file from OneDrive.
         
@@ -172,7 +172,7 @@ class OneDriveProvider(FileStorageProvider):
             "Use Microsoft Graph API directly."
         )
     
-    async def create_directory(self, path: str) -> FileOperationResult:
+    def create_directory(self, path: str) -> FileOperationResult:
         """
         Create directory in OneDrive.
         

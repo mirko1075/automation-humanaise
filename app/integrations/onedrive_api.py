@@ -3,7 +3,7 @@
 OneDriveConnector for Edilcos Automation Backend.
 Handles Excel updates for quotes via Microsoft Graph API.
 """
-from typing import Any, Dict, Optional
+from typing import Dict, Optional, Any
 from uuid import UUID
 from app.db.models import Quote, Customer
 from app.monitoring.logger import log
@@ -13,7 +13,8 @@ from app.config import settings
 from app.db.session import SessionLocal
 from datetime import datetime
 import traceback
-import aiohttp
+# aiohttp is imported lazily inside async functions to avoid import-time
+# failures when optional networking dependencies (aiodns/pycares) are missing
 
 # Queue model for Excel update actions
 from sqlalchemy import Column, String, DateTime, JSON
@@ -30,11 +31,13 @@ class QuoteDocumentAction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-async def get_graph_client() -> aiohttp.ClientSession:
+async def get_graph_client() -> Any:
     """
     Get an authenticated Microsoft Graph client session.
     """
     # Acquire token using client credentials
+    import aiohttp
+
     token_url = f"https://login.microsoftonline.com/{settings.ONEDRIVE_TENANT_ID}/oauth2/v2.0/token"
     data = {
         "client_id": settings.ONEDRIVE_CLIENT_ID,
@@ -138,4 +141,9 @@ class OneDriveConnector:
 
     async def enqueue_excel_update(self, quote: Quote) -> None:
         await enqueue_excel_update(quote)
+
+
+# Compatibility alias: older code expects `update_excel_on_onedrive`
+# Map it to the current implementation `update_quote_excel`.
+update_excel_on_onedrive = update_quote_excel
 

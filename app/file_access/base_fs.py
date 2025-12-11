@@ -6,7 +6,7 @@ This interface defines the contract that all protocol adapters must implement.
 It is protocol-agnostic and can be used with SMB, NFS, WebDAV, SFTP, FTP/S, etc.
 """
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, AsyncIterator
 from pathlib import Path
@@ -40,9 +40,9 @@ class FileOperationResult:
 class HealthCheckResult:
     """Result of a health check."""
     healthy: bool
-    protocol: str
-    message: str
-    details: Dict[str, Any]
+    message: str = ""
+    details: Dict[str, Any] = field(default_factory=dict)
+    protocol: Optional[str] = None
     latency_ms: Optional[float] = None
 
 

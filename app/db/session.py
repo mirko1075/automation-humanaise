@@ -32,6 +32,8 @@ async def check_db_ready() -> bool:
 """
 Database session and base class setup (SQLAlchemy 2.0 style).
 """
+from typing import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
@@ -79,3 +81,17 @@ try:
 except Exception:
     # Table creation is best-effort during tests; don't block import on failures
     pass
+
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    FastAPI dependency that yields an `AsyncSession` instance.
+
+    Usage in endpoints:
+        db: AsyncSession = Depends(get_async_session)
+
+    Returns:
+        AsyncGenerator yielding a database session that is closed after use.
+    """
+    async with SessionLocal() as session:
+        yield session
