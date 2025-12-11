@@ -10,7 +10,7 @@ from app.db.repositories.quote_repository import QuoteRepository
 from app.db.repositories.customer_repository import CustomerRepository
 from app.db.repositories.quote_document_action_repository import QuoteDocumentActionRepository
 from app.integrations.whatsapp_api import send_whatsapp_message
-from app.integrations.onedrive_api import update_quote_excel
+from app.file_access.registry import get_file_provider
 from app.monitoring.logger import log
 from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
@@ -48,14 +48,35 @@ async def process_excel_update_queue():
         repo = QuoteDocumentActionRepository(db)
         quote_repo = QuoteRepository(db)
         customer_repo = CustomerRepository(db)
+        tenant_repo = TenantRepository(db)
         actions = await repo.list_pending()
         for action in actions:
             try:
                 quote = await quote_repo.get(action.quote_id)
                 customer = await customer_repo.get(quote.customer_id)
-                await update_quote_excel(quote.tenant_id, quote, customer)
-                await repo.update(action.id, status="completed")
-                await audit_event("excel_update_completed", quote.tenant_id, quote.flow_id, {"quote_id": str(quote.id)})
+                tenant = await tenant_repo.get_by_id(quote.tenant_id)
+                
+                if tenant and tenant.file_provider:
+                    provider = get_file_provider(tenant)
+                    customer_dict = {
+                        "name": customer.name,
+                        "email": customer.email,
+                        "phone": customer.phone
+                    }
+                    result = await provider.update_quote_excel(quote.tenant_id, quote, customer_dict)
+                    
+                    if result.success:
+                        await repo.update(action.id, status="completed")
+                        await audit_event("excel_update_completed", quote.tenant_id, quote.flow_id, {"quote_id": str(quote.id), "provider": tenant.file_provider})
+                        log("INFO", f"Excel update completed for quote {quote.id}", module="jobs", tenant_id=quote.tenant_id)
+                    else:
+                        await repo.update(action.id, status="failed")
+                        log("ERROR", f"Excel update failed: {result.message}", module="jobs", tenant_id=quote.tenant_id)
+                        await audit_event("excel_update_failed", quote.tenant_id, quote.flow_id, {"quote_id": str(quote.id), "error": result.message})
+                else:
+                    log("WARNING", f"No file provider configured for tenant {quote.tenant_id}", module="jobs", tenant_id=quote.tenant_id)
+                    await repo.update(action.id, status="skipped")
+                    
             except Exception as exc:
                 tb = traceback.format_exc()
                 log("ERROR", f"Excel update queue error: {exc}", module="jobs")

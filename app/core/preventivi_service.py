@@ -7,13 +7,14 @@ from uuid import UUID
 from app.db.models import NormalizedEvent
 from app.db.repositories.customer_repository import CustomerRepository
 from app.db.repositories.quote_repository import QuoteRepository
+from app.db.repositories.tenant_repository import TenantRepository
 from app.monitoring.logger import log
 from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.db.session import SessionLocal
 from app.integrations.llm_service import classify_event, extract_entities
 from app.integrations.whatsapp_api import WhatsAppMessenger
-from app.integrations.onedrive_api import OneDriveConnector
+from app.file_access.registry import get_file_provider
 import traceback
 
 async def process_normalized_event(event: NormalizedEvent) -> None:
@@ -74,10 +75,29 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
                 event_id=event_id
             )
             await audit_event("wa_notification_enqueued", tenant_id, flow_id, {"customer_id": str(customer.id)}, request_id=request_id)
-            # 6. Prepare OneDrive Excel Update
-            onedrive = OneDriveConnector()
-            await onedrive.enqueue_excel_update(quote)
-            await audit_event("excel_update_enqueued", tenant_id, flow_id, {"quote_id": str(quote.id)}, request_id=request_id)
+            # 6. File Storage Provider Excel Update
+            tenant_repo = TenantRepository(db)
+            tenant = await tenant_repo.get_by_id(tenant_id)
+            if tenant and tenant.file_provider:
+                try:
+                    provider = get_file_provider(tenant)
+                    customer_dict = {
+                        "name": customer.name,
+                        "email": customer.email,
+                        "phone": customer.phone
+                    }
+                    result = await provider.update_quote_excel(tenant_id, quote, customer_dict)
+                    if result.success:
+                        log("INFO", f"Excel update succeeded: {result.message}", module="preventivi_service", tenant_id=tenant_id)
+                    else:
+                        log("WARNING", f"Excel update failed: {result.message}", module="preventivi_service", tenant_id=tenant_id)
+                    await audit_event("file_provider_excel_update", tenant_id, flow_id, {"quote_id": str(quote.id), "provider": tenant.file_provider, "success": result.success}, request_id=request_id)
+                except Exception as provider_exc:
+                    log("ERROR", f"File provider error: {provider_exc}", module="preventivi_service", tenant_id=tenant_id)
+                    await audit_event("file_provider_error", tenant_id, flow_id, {"quote_id": str(quote.id), "error": str(provider_exc)}, request_id=request_id)
+            else:
+                log("WARNING", f"No file provider configured for tenant {tenant_id}", module="preventivi_service", tenant_id=tenant_id)
+            await audit_event("excel_update_completed", tenant_id, flow_id, {"quote_id": str(quote.id)}, request_id=request_id)
             log("INFO", "PreventiviV1: processing completed", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
         except Exception as exc:
             tb = traceback.format_exc()

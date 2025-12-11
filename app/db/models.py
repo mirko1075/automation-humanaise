@@ -15,6 +15,8 @@ class Tenant(Base):
     name = Column(String, nullable=False)
     status = Column(String, nullable=False, default="active")
     active_flows = Column(JSON, nullable=True)
+    file_provider = Column(String, nullable=True)  # "localfs", "onedrive", "gdrive", etc.
+    file_config = Column(JSON, nullable=True)  # Provider-specific configuration
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)
