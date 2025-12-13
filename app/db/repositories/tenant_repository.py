@@ -9,6 +9,8 @@ from uuid import UUID
 from typing import Optional, List
 
 class TenantRepository:
+    """CRUD operations for Tenant model."""
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -23,9 +25,20 @@ class TenantRepository:
         result = await self.db.execute(select(Tenant).where(Tenant.id == tenant_id))
         return result.scalar_one_or_none()
 
+    async def get_by_id(self, tenant_id: UUID) -> Optional[Tenant]:
+        """Get a tenant by UUID (alias for get)."""
+        return await self.get(tenant_id)
+
     async def list(self) -> List[Tenant]:
         result = await self.db.execute(select(Tenant))
-        return result.scalars().all()
+        return list(result.scalars().all())
+
+    async def list_active(self) -> List[Tenant]:
+        """List all active tenants (status='active')."""
+        result = await self.db.execute(
+            select(Tenant).where(Tenant.status == "active")
+        )
+        return list(result.scalars().all())
 
     async def update(self, tenant_id: UUID, **kwargs) -> Optional[Tenant]:
         tenant = await self.get(tenant_id)

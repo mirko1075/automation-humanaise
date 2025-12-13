@@ -2,7 +2,7 @@
   "info": {
     "name": "Edilcos Automation Backend",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Postman collection to test health endpoints"
+    "description": "Postman collection to test health endpoints and webhooks"
   },
   "item": [
     {
@@ -59,6 +59,93 @@
                   "pm.test('Has status field', function () {",
                   "  const json = pm.response.json();",
                   "  pm.expect(json.status).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Gmail Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": {\n    \"data\": \"eyJoaXN0b3J5SWQiOiAiMTIzNDU3IiwgImVtYWlsQWRkcmVzcyI6ICJ0ZXN0QGV4YW1wbGUuY29tIiwgIm1lc3NhZ2VJZCI6ICJtc2ctdGVzdC1mbG93LTAwMSJ9\",\n    \"messageId\": \"pub-sub-msg-124\",\n    \"publishTime\": \"2025-12-13T10:00:00.000Z\"\n  },\n  \"subscription\": \"projects/myproject/subscriptions/mysubscription\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/gmail/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["gmail", "webhook"]
+            },
+            "description": "Gmail Pub/Sub webhook test. The 'data' field contains base64-encoded JSON:\n```json\n{\n  \"historyId\": \"123457\",\n  \"emailAddress\": \"test@example.com\",\n  \"messageId\": \"msg-test-flow-001\"\n}\n```\nMake sure the emailAddress matches a configured tenant or external token in your database."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});",
+                  "pm.test('Has status or error field', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status || json.error).to.exist;",
+                  "});",
+                  "pm.test('Has request_id', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.request_id).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "WhatsApp Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WHATSAPP_BUSINESS_ACCOUNT_ID\",\n      \"changes\": [\n        {\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"+393331234567\",\n              \"phone_number_id\": \"PHONE_NUMBER_ID\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Mario Rossi\"\n                },\n                \"wa_id\": \"393331234567\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"393331234567\",\n                \"id\": \"wamid.HBgLMzkzMzMxMjM0NTY3FQIAERgSNEE2Q0Y3RjBCNTBCMDRERjY5AA==\",\n                \"timestamp\": \"1702468800\",\n                \"text\": {\n                  \"body\": \"Richiesta preventivo per ristrutturazione bagno\"\n                },\n                \"type\": \"text\"\n              }\n            ]\n          },\n          \"field\": \"messages\"\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/whatsapp/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["whatsapp", "webhook"]
+            },
+            "description": "WhatsApp Cloud API webhook test. This is the standard Meta/Facebook webhook format for incoming WhatsApp messages.\n\nNote: This endpoint needs to be implemented in `app/api/ingress/whatsapp_webhook.py`.\n\nThe phone number in the 'from' field should match a configured tenant or external token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});",
+                  "pm.test('Has status or error field', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status || json.error).to.exist;",
                   "});"
                 ],
                 "type": "text/javascript"

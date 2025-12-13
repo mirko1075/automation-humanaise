@@ -4,7 +4,7 @@ Audit logging for Edilcos Automation Backend.
 """
 from app.db.models import AuditLog
 from app.db.session import SessionLocal
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Any, Dict, Optional
 from app.monitoring.logger import log

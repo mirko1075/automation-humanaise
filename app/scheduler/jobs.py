@@ -14,7 +14,7 @@ from app.file_access.registry import get_file_provider
 from app.monitoring.logger import log
 from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import traceback
 
 MAX_RETRIES = 3
@@ -88,7 +88,7 @@ async def process_quote_reminders():
     async with SessionLocal() as db:
         quote_repo = QuoteRepository(db)
         customer_repo = CustomerRepository(db)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         threshold = now - timedelta(days=QUOTE_REMINDER_DAYS)
         quotes = await quote_repo.list_open_older_than(threshold)
         for quote in quotes:
@@ -108,4 +108,4 @@ async def process_quote_reminders():
 async def process_daily_health_report():
     # Placeholder for daily health report job
     log("INFO", "Daily health report job executed.", module="jobs")
-    await audit_event("daily_health_report", None, None, {"timestamp": datetime.utcnow().isoformat()})
+    await audit_event("daily_health_report", None, None, {"timestamp": datetime.now(timezone.utc).isoformat()})

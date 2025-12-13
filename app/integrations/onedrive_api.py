@@ -11,7 +11,7 @@ from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.config import settings
 from app.db.session import SessionLocal
-from datetime import datetime
+from datetime import datetime, timezone
 import traceback
 # aiohttp is imported lazily inside async functions to avoid import-time
 # failures when optional networking dependencies (aiodns/pycares) are missing
@@ -28,8 +28,8 @@ class QuoteDocumentAction(Base):
     action_type = Column(String, nullable=False, default="excel_update")
     payload = Column(JSON, nullable=False)
     status = Column(String, nullable=False, default="PENDING")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 async def get_graph_client() -> Any:
     """
@@ -81,7 +81,7 @@ async def update_quote_excel(tenant_id: UUID, quote: Quote, customer: Customer) 
             customer.email,
             quote.quote_data.get("descrizione_lavori", ""),
             quote.status,
-            datetime.utcnow().isoformat()
+            datetime.now(timezone.utc).isoformat()
         ]
         if match_row:
             # Update existing row

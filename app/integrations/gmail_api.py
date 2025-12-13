@@ -4,7 +4,10 @@ Gmail API connector for Edilcos Automation Backend.
 """
 import base64
 import email
-import aiohttp
+from typing import Dict, Any, List, Optional
+from app.monitoring.errors import record_error
+
+# aiohttp is imported lazily inside functions to avoid import-time issues
 from typing import Dict, Any, List, Optional
 from app.monitoring.errors import record_error
 
@@ -22,6 +25,8 @@ async def fetch_message(message_id: str, access_token: str) -> Dict[str, Any]:
     """
     url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{message_id}?format=raw"
     headers = {"Authorization": f"Bearer {access_token}"}
+    import aiohttp
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as resp:
             try:

@@ -55,5 +55,42 @@
         }
       }
     }
+    ,
+    "/admin/monitoring/raw_events": {
+      "get": {
+        "summary": "List Raw Events",
+        "operationId": "listRawEvents",
+        "parameters": [
+          {"name": "tenant_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}}
+        ],
+        "responses": {"200": {"description": "List of RawEvents"}}
+      }
+    },
+    "/admin/monitoring/normalized_events": {
+      "get": {
+        "summary": "List Normalized Events",
+        "operationId": "listNormalizedEvents",
+        "parameters": [
+          {"name": "tenant_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}}
+        ],
+        "responses": {"200": {"description": "List of NormalizedEvents"}}
+      }
+    },
+    "/admin/monitoring/discarded_audits": {
+      "get": {
+        "summary": "List Discarded Audit Events",
+        "operationId": "listDiscardedAudits",
+        "parameters": [
+          {"name": "tenant_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}}
+        ],
+        "responses": {"200": {"description": "List of discarded audit events"}}
+      }
+    }
   }
 }

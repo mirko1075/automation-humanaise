@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, DateTime, Boolean, JSON, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.session import Base
 
 class Tenant(Base):

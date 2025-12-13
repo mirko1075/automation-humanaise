@@ -5,7 +5,7 @@ Tests for File Access Abstraction Layer (FAAL).
 import pytest
 import tempfile
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.file_access.localfs_provider import LocalFSProvider
 from app.file_access.onedrive_provider import OneDriveProvider
@@ -141,7 +141,7 @@ class TestLocalFSProvider:
         # Create mock quote and customer
         class MockQuote:
             id = "test-quote-123"
-            created_at = datetime.utcnow()
+            created_at = datetime.now(timezone.utc)
             total = 1500.50
             status = "pending"
             notes = "Test quote"
@@ -307,7 +307,7 @@ class TestE2EFileAccess:
             # Create mock quote
             class MockQuote:
                 id = "quote-001"
-                created_at = datetime.utcnow()
+                created_at = datetime.now(timezone.utc)
                 total = 2500.00
                 status = "pending"
                 notes = "New construction project"

@@ -34,7 +34,8 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
             classification = classify_event(event)
             await audit_event("preventivi_classification", tenant_id, flow_id, {"event_id": str(event_id), "classification": classification}, request_id=request_id)
             if classification == "not_relevant":
-                log("INFO", "PreventiviV1: event not relevant", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
+                log("WARNING", f"PreventiviV1: event scartato (not relevant). Payload: {getattr(event, 'normalized_data', {})}", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
+                await audit_event("preventivi_discarded", tenant_id, flow_id, {"event_id": str(event_id), "reason": "not_relevant", "payload": getattr(event, 'normalized_data', {})}, request_id=request_id)
                 return
             # 2. Entity Extraction (synchronous call)
             extracted = extract_entities(event)
@@ -61,7 +62,8 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
             
             # Skip notifications/excel if quote not created
             if not quote:
-                log("WARNING", f"No quote created for classification={classification}", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id)
+                log("WARNING", f"PreventiviV1: evento scartato, nessun quote creato. Classification={classification}, Payload: {getattr(event, 'normalized_data', {})}", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
+                await audit_event("preventivi_discarded", tenant_id, flow_id, {"event_id": str(event_id), "reason": f"no_quote_created ({classification})", "payload": getattr(event, 'normalized_data', {})}, request_id=request_id)
                 return
                 
             # 5. Prepare WhatsApp Notification

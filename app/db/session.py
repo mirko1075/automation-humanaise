@@ -68,7 +68,8 @@ try:
                 await conn.run_sync(Base.metadata.create_all)
 
         try:
-            loop = asyncio.get_event_loop()
+            # Prefer get_running_loop() to detect if an event loop is active
+            loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
 
@@ -76,7 +77,7 @@ try:
             # If an event loop is already running, schedule the task
             asyncio.create_task(_create_tables())
         else:
-            # Run until complete for typical test import-time setup
+            # No running loop — run synchronously to create tables
             asyncio.run(_create_tables())
 except Exception:
     # Table creation is best-effort during tests; don't block import on failures

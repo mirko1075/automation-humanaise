@@ -1,0 +1,367 @@
+INFO:     Will watch for changes in these directories: ['/home/msiddi/Documents/personal/edilcos']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [3471574] using WatchFiles
+2025-12-11 20:54:13 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 20:54:13 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 20:54:13 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 20:54:13 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 20:54:13 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 20:54:13 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T19:54:13.461388", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3471589]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:36388 - "GET /health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:43916 - "GET /health HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:44370 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38058 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38070 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38072 - "GET /openapi.json HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'app/monitoring/logger.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3471589]
+2025-12-11 20:58:00 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 20:58:00 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 20:58:00 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 20:58:00 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 20:58:00 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 20:58:00 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T19:58:00.628171+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3478956]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/monitoring/audit.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3478956]
+2025-12-11 20:58:04 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 20:58:04 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 20:58:04 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 20:58:04 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 20:58:04 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 20:58:04 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T19:58:04.904384+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3479052]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/monitoring/logger.py', 'app/integrations/whatsapp_api.py', 'app/monitoring/audit.py', 'app/integrations/gmail_api.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3479052]
+2025-12-11 20:58:50 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 20:58:50 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 20:58:50 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 20:58:50 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 20:58:50 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 20:58:50 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T19:58:50.556177+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3480644]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/integrations/onedrive_api.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3480644]
+2025-12-11 20:59:54 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 20:59:54 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 20:59:54 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 20:59:54 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 20:59:54 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 20:59:54 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T19:59:54.078960+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3482586]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/db/repositories/error_repository.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3482586]
+2025-12-11 21:00:03 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:00:03 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:00:03 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:00:03 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:00:03 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:00:03 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:00:03.664053+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3482881]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/scheduler/jobs.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3482881]
+2025-12-11 21:00:12 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:00:12 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:00:12 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:00:12 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:00:12 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:00:12 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:00:12.603895+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3483226]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_file_access.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3483226]
+2025-12-11 21:00:16 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:00:16 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:00:16 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:00:16 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:00:16 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:00:16 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:00:16.767731+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3483415]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_file_access.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3483415]
+2025-12-11 21:00:20 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:00:20 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:00:20 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:00:20 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:00:20 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:00:20 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:00:20.438640+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3483526]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_file_access.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3483526]
+2025-12-11 21:31:33 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:31:33 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:31:33 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:31:33 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:31:33 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:31:33 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:31:33.293456+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3537912]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/scheduler/jobs.py', 'app/db/repositories/error_repository.py', 'app/integrations/onedrive_api.py', 'tests/test_file_access.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3537912]
+2025-12-11 21:33:00 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:33:00 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:33:00 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:33:00 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:33:00 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:33:00 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:33:00.188086+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3540890]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/file_access/watchers/smb_watcher.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3540890]
+WARNING:  WatchFiles detected changes in 'app/file_access/watchers/smb_watcher.py'. Reloading...
+2025-12-11 21:34:29 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:34:29 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:34:29 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:34:29 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:34:29 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:34:29 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:34:29.127621+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3543558]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2025-12-11 21:34:30 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:34:30 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:34:30 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:34:30 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:34:30 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:34:30 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:34:30.333223+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3543622]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_watchers.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3543622]
+WARNING:  WatchFiles detected changes in 'tests/test_watchers.py'. Reloading...
+2025-12-11 21:34:53 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:34:53 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:34:53 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:34:53 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:34:53 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:34:53 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:34:53.724600+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3544305]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2025-12-11 21:34:54 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:34:54 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:34:54 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:34:54 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:34:54 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:34:54 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:34:54.904953+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3544310]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_onedrive_integration.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3544310]
+WARNING:  WatchFiles detected changes in 'tests/test_onedrive_integration.py'. Reloading...
+2025-12-11 21:39:50 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:39:50 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:39:50 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:39:50 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:39:50 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:39:50 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:39:50.904128+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3553537]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2025-12-11 21:39:52 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:39:52 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:39:52 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:39:52 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:39:52 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:39:52 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:39:52.041388+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3553618]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_onedrive_integration.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3553618]
+2025-12-11 21:41:17 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:41:17 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:41:17 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:41:17 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:41:17 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:41:17 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:41:17.842649+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3556399]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_onedrive_integration.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3556399]
+2025-12-11 21:41:23 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:41:23 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:41:23 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:41:23 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:41:23 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:41:23 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:41:23.623706+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3556558]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_onedrive_integration.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3556558]
+2025-12-11 21:41:49 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:41:49 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:41:49 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:41:49 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:41:49 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:41:49 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:41:49.821212+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3557512]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_onedrive_integration.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3557512]
+2025-12-11 21:43:21 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:43:21 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:43:21 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:43:21 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:43:21 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:43:21 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:43:21.059596+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3560401]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/db/session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3560401]
+2025-12-11 21:43:30 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:43:30 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:43:30 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:43:30 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:43:30 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:43:30 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:43:30.895350+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3560711]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/db/models.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3560711]
+2025-12-11 21:45:31 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:45:31 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:45:31 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:45:31 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:45:31 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:45:31 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:45:31.303317+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3564684]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/integrations/onedrive_api.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3564684]
+2025-12-11 21:45:35 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:45:35 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:45:35 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:45:35 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:45:35 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:45:35 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:45:35.929346+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3564821]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app/db/session.py', 'tests/test_watchers.py', 'tests/test_onedrive_integration.py', 'app/db/models.py', 'app/integrations/onedrive_api.py', 'app/file_access/watchers/smb_watcher.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3564821]
+2025-12-11 21:53:51 [info     ] protocol_registered            adapter=SMBProtocolAdapter protocol=smb
+2025-12-11 21:53:51 [info     ] protocol_registered            adapter=NFSProtocolAdapter protocol=nfs
+2025-12-11 21:53:51 [info     ] protocol_registered            adapter=WebDAVProtocolAdapter protocol=webdav
+2025-12-11 21:53:51 [info     ] protocol_registered            adapter=SFTPProtocolAdapter protocol=sftp
+2025-12-11 21:53:51 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftp
+2025-12-11 21:53:51 [info     ] protocol_registered            adapter=FTPProtocolAdapter protocol=ftps
+{"timestamp": "2025-12-11T20:53:51.869660+00:00", "level": "INFO", "message": "Edilcos Automation Backend started", "component": "main", "request_id": null, "tenant_id": null, "flow_id": null}
+INFO:     Started server process [3580248]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

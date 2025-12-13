@@ -15,6 +15,7 @@ from app.monitoring.context import set_request_context
 from app.api.admin.health import router as health_router
 from app.api.admin.errors import router as errors_router
 from app.api.ingress.gmail_webhook import router as gmail_router
+from app.api.admin.monitoring import router as monitoring_router
 
 app = FastAPI(title="Edilcos Automation Backend")
 
@@ -73,6 +74,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(health_router)
 app.include_router(errors_router)
 app.include_router(gmail_router)
+app.include_router(monitoring_router)
 
 # Logging initialization
 log("INFO", "Edilcos Automation Backend started", module="main")

@@ -8,7 +8,9 @@ from app.monitoring.logger import log
 from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from typing import Dict, Any
-import aiohttp
+import traceback
+
+# aiohttp is imported lazily inside functions to avoid import-time resolver issues
 import traceback
 
 async def send_whatsapp_message(notification: Notification, tenant: Tenant) -> Dict[str, Any]:
@@ -20,6 +22,8 @@ async def send_whatsapp_message(notification: Notification, tenant: Tenant) -> D
             "Content-Type": "application/json"
         }
         payload = build_payload(notification)
+        import aiohttp
+
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload, headers=headers) as resp:
                 resp_data = await resp.json()

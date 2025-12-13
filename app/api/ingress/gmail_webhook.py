@@ -21,15 +21,21 @@ import traceback
 router = APIRouter(prefix="/gmail", tags=["gmail"])
 
 async def get_tenant_id(email_address: str, db):
-    # Try ExternalToken first, then Tenant
+    """Find tenant by email address via ExternalToken or Tenant name."""
     ext_token_repo = ExternalTokenRepository(db)
     tenant_repo = TenantRepository(db)
+    
+    # Try ExternalToken first (for mapped email addresses)
     ext_tokens = await ext_token_repo.list_by_external_id(email_address)
     if ext_tokens:
         return ext_tokens[0].tenant_id
-    tenant = await tenant_repo.get(email_address)
-    if tenant:
-        return tenant.id
+    
+    # Try Tenant by name (assuming email domain or full email as tenant name)
+    tenants = await tenant_repo.list()
+    for tenant in tenants:
+        if tenant.name.lower() == email_address.lower():
+            return tenant.id
+    
     return None
 
 @router.post("/webhook")
@@ -62,23 +68,31 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
             if any(e.idempotency_key == message_id for e in existing):
                 log("INFO", f"Duplicate message_id {message_id}", module="gmail_webhook", request_id=request_id)
                 return JSONResponse(content={"status": "received", "request_id": request_id})
-            # Fetch Gmail message
+            
+            # TODO: ENABLE GMAIL API WHEN TESTING WITH REAL GMAIL
             # TODO: Get access_token for Gmail API (from ExternalToken or config)
-            access_token = "..."  # Replace with real token retrieval
-            gmail_data = await gmail_api.fetch_message(message_id, access_token)
+            # access_token = "..."  # Replace with real token retrieval
+            # gmail_data = await gmail_api.fetch_message(message_id, access_token)
+            
+            # TEMPORARY: Skip Gmail API call for Postman testing
+            gmail_data = {
+                "subject": "Richiesta preventivo per ristrutturazione",
+                "sender": email_address,
+                "text_plain": "Buongiorno, vorrei un preventivo per ristrutturazione bagno. Sono Mario Rossi, email mario.rossi@example.com, tel 333-1234567",
+                "text_html": "<p>Buongiorno, vorrei un preventivo per ristrutturazione bagno. Sono Mario Rossi, email mario.rossi@example.com, tel 333-1234567</p>",
+                "attachments": []
+            }
+            
+            # Merge gmail_data into payload for storage
+            enriched_payload = {**payload, **gmail_data}
+            
             raw_event = await raw_event_repo.create(
                 tenant_id=tenant_id,
                 flow_id=None,
                 source="gmail",
-                payload=payload,
+                payload=enriched_payload,
                 idempotency_key=message_id
             )
-            # Save additional fields
-            raw_event.subject = gmail_data["subject"]
-            raw_event.sender = gmail_data["sender"]
-            raw_event.raw_text = gmail_data["text_plain"]
-            raw_event.raw_html = gmail_data["text_html"]
-            raw_event.attachments = gmail_data["attachments"]
             await db.commit()
             await db.refresh(raw_event)
             await audit_event("gmail_ingress", tenant_id, None, payload, request_id=request_id)

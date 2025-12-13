@@ -4,7 +4,7 @@ Structured JSON logger for Edilcos Automation Backend.
 """
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 def get_request_context():
     # Import lazily to avoid import cycles
@@ -14,7 +14,7 @@ def get_request_context():
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         log_record = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "message": record.getMessage(),
             "component": getattr(record, "component", record.module),
