@@ -34,4 +34,9 @@ class Settings(BaseSettings):
     # Whether health check should perform a temporary write (create+delete folder)
     ONEDRIVE_HEALTHCHECK_WRITE: bool = Field(False, env="ONEDRIVE_HEALTHCHECK_WRITE")
 
+    # Google OAuth settings for Gmail ingestion
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: Optional[str] = None
+
 settings = Settings()

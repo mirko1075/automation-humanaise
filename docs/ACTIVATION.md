@@ -1,4 +1,4 @@
-## Activation Checklist
+# Activation Checklist
 
 This document guides operators through enabling OneDrive/SharePoint integration with OAuth app-only.
 
@@ -30,7 +30,8 @@ This document guides operators through enabling OneDrive/SharePoint integration 
 5. Production considerations
    - Store `MS_CLIENT_SECRET` in a secrets manager (do not commit to git).
    - Consider using a shared token cache (Redis) for multi-worker deployments.
-# Activation Checklist
+
+## Activation Checklist
 
 This file lists the steps to activate the system in a new environment.
 

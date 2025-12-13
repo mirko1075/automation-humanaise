@@ -1,16 +1,20 @@
+# Changelog
+
 ## v1.3.3 — Microsoft Graph OAuth App-Only & OneDrive Improvements (2025-12-13)
 
 ## v1.3.4 — Auth Callback & Docs (2025-12-13)
 
 ### Added
+
 - Placeholder endpoint for Google OAuth callback: `GET /auth/google/callback`. Returns 400 when `code` is missing; intended as a minimal dev hook until full OAuth flow is integrated.
 - OpenAPI and Postman collection updated to include the OAuth callback and OneDrive health/readiness notes.
 
 ### Changed
+
 - Tests: stabilized OneDrive enqueue test to avoid cross-event-loop DB commit failures in CI by adding a safe test fallback and audit-based verification.
 
-
 ### Added
+
 - Microsoft Graph OAuth2 app-only authentication (`OAuthAuth`) for OneDrive/SharePoint (`client_credentials` flow).
 - `ONEDRIVE_AUTH_MODE` configuration to select between `test` (legacy) and `app` (OAuth app-only).
 - In-memory token caching with automatic refresh and structured logs for token acquisition/refresh.
@@ -18,22 +22,23 @@
 - Activation and operational docs: `docs/ACTIVATION.md`, `docs/ONEDRIVE.md` (OAuth activation checklist and troubleshooting).
 
 ### Changed
+
 - OneDrive auth now defaults to OAuth app-only (`ONEDRIVE_AUTH_MODE=app`) for production.
 - `OneDriveClient` accepts async auth providers and selects `OAuthAuth` by default when in `app` mode.
 - Postman and OpenAPI docs updated to indicate server-side app-only authentication.
 
 ### Notes
+
 - Required env vars for `app` mode: `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT_ID` (startup will fail fast if missing).
 - Required Graph permissions (admin consent): `Sites.ReadWrite.All`, `Files.ReadWrite.All`.
 - Discovery improvements for SharePoint-backed personal sites remain in place and log decisions to `integration_events`.
-
-
 
 ## v1.3.0 — Multi-Protocol NAS Provider System (2024-12-11)
 
 ### Added
 
 #### Core Infrastructure
+
 - **Protocol-Agnostic Filesystem Interface** (`app/file_access/base_fs.py`)
   - New `FileStorageProvider` abstract base class with 15 async methods
   - `FileInfo`, `FileOperationResult`, `HealthCheckResult` dataclasses
@@ -48,6 +53,7 @@
   - Support for multiple protocols: SMB (implemented), NFS, WebDAV, SFTP, FTP/S (documented)
 
 #### Protocol Adapters
+
 - **SMB/CIFS Protocol Adapter** (`app/file_access/protocols/smb_protocol.py`)
   - Full implementation using `pysmb` library (750+ lines)
   - Connection management with username/password, domain support
@@ -63,6 +69,7 @@
   - `protocols/ftp_protocol.py` - FTP/FTPS support guide
 
 #### Document Operations (Protocol-Agnostic)
+
 - **Excel Operations** (`document_ops/excel_ops.py`, 280+ lines)
   - `read_excel()`, `write_excel()`, `update_excel()`, `create_excel_from_data()`
   - `read_excel_as_dict()`, `append_excel_row()`
@@ -79,6 +86,7 @@
   - Uses `python-docx` library
 
 #### Testing & Documentation
+
 - **Comprehensive Test Suite** (`tests/test_nas_provider.py`, 550+ lines)
   - 25+ test cases covering orchestration, adapters, operations, error handling
   - Mock-based unit tests with `AsyncMock` and `pytest-asyncio`
@@ -88,6 +96,7 @@
   - `docs/NAS_PROVIDER_IMPLEMENTATION_SUMMARY.md` - Technical architecture overview
 
 #### Dependencies
+
 - Added to `requirements.txt`:
   - `pysmb>=1.2.9` - SMB/CIFS protocol
   - `pypdf>=3.17.0` - PDF operations
@@ -95,12 +104,14 @@
   - `python-docx>=1.1.0` - Word documents
 
 ### Changed
+
 - **Provider Registry** (`app/file_access/registry.py`)
   - Added `NASProvider` to registry
   - Registry now supports: `localfs`, `onedrive`, `nas`
   - Maintains backward compatibility
 
 ### Technical Details
+
 - **Lines of Code**: ~3,500+ new lines
 - **Files Created**: 13
 - **Files Modified**: 2
@@ -108,6 +119,7 @@
 - **Documentation**: 2,000+ lines
 
 ### Architecture Improvements
+
 - Protocol adapter pattern for clean separation of concerns
 - Dynamic loading of protocols on-demand
 - Extensibility without modifying existing code
@@ -115,11 +127,13 @@
 - Async-first design for optimal performance
 
 ### Backward Compatibility
+
 - ✅ All existing LocalFS provider functionality preserved
 - ✅ All existing OneDrive provider functionality preserved
 - ✅ No breaking changes to public APIs
 
 ### Known Limitations
+
 - SMB file watcher not yet implemented (optional feature)
 - NFS, WebDAV, SFTP, FTP/S protocols have placeholder implementations with guides
 
@@ -128,6 +142,7 @@
 ## v1.2.0 — Production Readiness + Full Test Coverage (2025-12-11)
 
 ### Added
+
 - **Event Normalizer Module** with inline LLM classification and entity extraction
 - **Complete E2E Test Suite** covering Gmail webhook → Customer/Quote creation
 - **Enhanced Monitoring**: Error persistence (ErrorLog model), fail-safe audit, Slack alerts
@@ -136,6 +151,7 @@
 - **Integration Stubs**: LLM service, WhatsApp enqueuing, OneDrive enqueuing
 
 ### Changed
+
 - **Database Models**: Added nullable fields (RawEvent.flow_id, AuditLog.tenant_id/flow_id)
 - **Notification Model**: Added `payload` (JSON) and `retry_count` (Integer) fields
 - **Tenant Model**: Added `status` and `active_flows` fields
@@ -143,6 +159,7 @@
 - **Customer Model**: Made `flow_id` nullable for cross-flow management
 
 ### Fixed
+
 - **Quote Variable Scoping Bug** in preventivi_service (UnboundLocalError)
 - **UUID Serialization** in JSON logger for proper log formatting
 - **Mock Patching** in tests to target correct import locations
@@ -155,6 +172,7 @@
 ## v1.3.1 — Monitoring Enhancements (2025-12-13)
 
 ### Added
+
 - **Monitoring Filters**: Added `start_date`, `end_date`, and `event_type` query filters to the admin monitoring endpoints:
   - `GET /admin/monitoring/raw_events`
   - `GET /admin/monitoring/normalized_events`
@@ -162,13 +180,15 @@
 - **Audit Trail Endpoint**: Added `GET /admin/monitoring/audit_trail?idempotency_key=...` to retrieve the full audit log sequence for a specific idempotency key.
 
 ### Changed
+
 - **OpenAPI & Postman**: Updated `openapi.json` and `postman_collection.json` with new query parameters and sample requests for filtered queries and the audit trail endpoint.
 
 ### Notes
+
 - All SQL queries for audit retrieval use parameterized statements to avoid SQL injection. Date filters accept ISO-8601 timestamps.
 
-
 ### Testing
+
 - ✅ 4/4 tests passing
 - E2E test: Complete pipeline validation
 - Unit tests: Monitoring helpers (audit, errors, logging)
@@ -176,6 +196,7 @@
 - Comprehensive mocking of external dependencies
 
 ### Documentation
+
 - Added IMPLEMENTATION_SUMMARY.md with architecture overview
 - Updated copilot instructions with full implementation details
 - Created OpenAPI/Postman collection for health endpoints
@@ -185,6 +206,7 @@
 ## v1.3.2 — OneDrive Discovery & Admin Monitoring (2025-12-13)
 
 ### Added
+
 - **OneDrive discovery improvements**: Personal-site discovery fallback added to `app/integrations/onedrive_client.py` to handle SharePoint-backed personal OneDrive sites. Includes `/sites/{hostname}:/personal/{user_segment}:/drive` attempt and `/drives` scanning fallback. Logs every discovery decision to `integration_events`.
 - **Integration events persistence**: New `IntegrationEvent` model and repository and corresponding SQL migration (`migrations/003_add_integration_events.sql`).
 - **Admin endpoints**: Read-only admin APIs to inspect monitoring and integration logs:
@@ -195,37 +217,43 @@
 - **Documentation**: Added operational docs under `docs/` including `ONEDRIVE.md`, `GMAIL.md`, `WHATSAPP.md`, `SLACK.md`, and the master `docs/README.md`. Also added `docs/GMAIL_EVENTS.md` and `docs/ONE_DRIVE_DISCOVERY_LOGS.md` for quick operator references.
 
 ### Changed
+
 - **Postman & OpenAPI**: Updated Postman collection to include admin monitoring and integrations endpoints. OpenAPI updated to reflect new query parameters and admin routes.
 - **Monitoring**: Improved logging and error handling in admin monitoring endpoints; fixed an import/indentation bug in `app/api/admin/monitoring.py` that prevented the service from starting.
 
 ### Fixed
+
 - Resolved startup error caused by a duplicated/malformed `monitoring.py` module.
 - Ensured `integration_events` table exists in developer DB via `scripts/create_integration_events.py` (safe, idempotent).
 
 ### Notes
+
 - For production deployments, prefer to integrate these schema changes into a managed Alembic migration rather than running ad-hoc SQL scripts.
 
 ### Added (Operator)
-- `GET /admin/health/onedrive` - New admin health endpoint to validate server-side OAuth token acquisition and connectivity to the configured OneDrive/SharePoint drive. Performs optional safe write when `ONEDRIVE_HEALTHCHECK_WRITE=true`.
 
+- `GET /admin/health/onedrive` - New admin health endpoint to validate server-side OAuth token acquisition and connectivity to the configured OneDrive/SharePoint drive. Performs optional safe write when `ONEDRIVE_HEALTHCHECK_WRITE=true`.
 
 ## v1.4.0 — OneDrive Readiness Integration (2025-12-13)
 
 ### Added
+
 - Integrate OneDrive readiness into `/admin/ready` so Kubernetes readiness checks verify both database and OneDrive connectivity.
 - New admin endpoint remains: `GET /admin/health/onedrive` for operator-driven checks (token, drive, root, children and optional safe write).
 
 ### Changed
+
 - `/admin/ready` now returns HTTP 503 with detailed `reason` when OneDrive is not ready. This avoids starting pods that would fail due to missing external dependencies.
 
 ### Notes
+
 - `ONEDRIVE_HEALTHCHECK_WRITE` controls whether the readiness check performs a safe create+delete operation on the target drive (default: false).
 - The OneDrive health checks are performed using server-side OAuth app-only credentials; ensure `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT_ID` and appropriate Graph application permissions are configured in production.
-
 
 ---
 
 ## v1.1.0 — HealthCheckSuite + TenantRegistry Implemented
+
 - Added /health and /health/deep endpoints for system diagnostics.
 - Deep health check covers DB, Gmail, OneDrive, WhatsApp, Scheduler.
 - Added /admin/tenants CRUD APIs for tenant management.
@@ -234,6 +262,7 @@
 - Modular, async, and ready for future admin features.
 
 ## v1.0.0 — SchedulerEngine + Jobs Implemented
+
 - Added APScheduler-based background job system.
 - Job for retrying WhatsApp notifications (pending/retry/failed).
 - Job for processing queued OneDrive Excel update actions.
@@ -243,6 +272,7 @@
 - Modular, async, and production-ready.
 
 ## v0.9.0 — DocumentiV1 Engine Started
+
 - Initial scaffolding for DocumentiV1 business flow.
 - Designed for document ingestion, classification, and metadata extraction.
 - Ready for integration with GmailIngress, EventNormalizer, and OneDriveConnector.
@@ -250,6 +280,7 @@
 - Modular, async, and multi-tenant ready.
 
 ## v0.8.0 — WhatsAppMessenger Implemented
+
 - Added WhatsAppMessenger module for multi-tenant messaging.
 - High-level API for enqueueing text, template, and media messages.
 - Notification queue entries in DB with status tracking.
@@ -259,6 +290,7 @@
 - Fully typed, async, modular, and production-ready.
 
 ## v0.7.0 — OneDriveConnector Implemented
+
 - Added OneDriveConnector module for Excel integration via Microsoft Graph API.
 - Implemented authentication with client credentials.
 - Provided update_quote_excel for quote/customer Excel updates.
@@ -270,6 +302,7 @@
 - Fully typed, async, and reusable for future flows.
 
 ## v0.6.0 — PreventiviV1 Engine Implemented
+
 - Added full PreventiviV1 business engine.
 - LLM-based classification of incoming messages.
 - Entity extraction pipeline (nome, cognome, telefono, indirizzo, descrizione lavori).
@@ -281,6 +314,7 @@
 - Integrated structured logging and Slack alerts.
 
 ## v0.5.0 — FlowRouter Implemented
+
 - Added FlowRouter with route_normalized_event(normalized_event_id).
 - Implemented tenant- and flow-aware routing logic.
 - Connected NormalizedEvent to PreventiviV1 as the initial active flow.
@@ -289,6 +323,7 @@
 - Designed extension points for future flows (DocumentiV1, AttrezzatureV1, UrgenzeV1).
 
 ## v0.4.0 — EventNormalizer Implemented
+
 - Added complete normalization pipeline converting RawEvent → NormalizedEvent.
 - HTML → text extraction with signature and boilerplate cleanup.
 - Sender and metadata normalization.
@@ -298,6 +333,7 @@
 - Integrated structured logging and Slack alerts.
 
 ## v0.3.0 — GmailIngress + GmailConnector
+
 - Implemented Gmail Pub/Sub webhook receiver.
 - Added Base64 URL-safe Pub/Sub decoding.
 - Full Gmail message fetch via Gmail API.
@@ -307,6 +343,7 @@
 - Integrated structured logging, audit logs, and Slack alerts.
 
 ## v0.2.0 — MonitoringCenter Implemented
+
 - Added structured JSON logging with request_id, tenant_id, flow_id.
 - Implemented audit logging system with persistence to AuditLog.
 - Integrated Slack alert notifications for errors and exceptions.
@@ -315,6 +352,7 @@
 - Modular and reusable monitoring across all backend modules.
 
 ## v0.1.0 — CoreConfig + DataLayer
+
 - Implemented Pydantic Settings for configuration management.
 - Added SQLAlchemy 2.0 async session and declarative base.
 - Created tenant-aware models: Tenant, ExternalToken, RawEvent, NormalizedEvent, Customer, Quote, Notification, AuditLog.
