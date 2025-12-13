@@ -82,22 +82,8 @@ class OneDriveClient:
         # If settings.MS_DRIVE_ID is of form 'me/drive', we handle it.
         # We resolve drive id lazily to support personal/business/SharePoint-backed drives.
         drive_part = self.drive
-        if not self._drive_resolved:
-            # attempt discovery; non-blocking on external session creation
-            # discovery modifies self._drive_id_cached or keeps self.drive
-            # We'll run discovery synchronously via asyncio.run if necessary
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = None
-            if loop and loop.is_running():
-                # We're in an event loop (normal case); schedule discovery task
-                # but do not block here — instead assume the configured MS_DRIVE_ID works
-                # If discovery completes later it will update the cached id.
-                asyncio.create_task(self._discover_drive())
-            else:
-                # Not in an event loop (CLI), run discovery now
-                asyncio.run(self._discover_drive())
+        # Discovery is triggered by operations on demand (on 404) to avoid
+        # racing background tasks and to keep discovery single-run and cached.
         if self._drive_id_cached:
             return f"{self.base_url}/drives/{self._drive_id_cached}/root:{path}"
         if drive_part == "me/drive":
