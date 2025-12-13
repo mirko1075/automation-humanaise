@@ -75,21 +75,26 @@ async def test_tenant(db_session):
         s.add(t)
         s.flush()
         from app.db.models import ExternalToken as ET
+        from uuid import uuid4 as _u4
+        unique_email = f"preventivi+{_u4()}@example.com"
         m = ET(
             id=uuid4(),
             tenant_id=t.id,
             provider="gmail",
-            external_id="preventivi@edilcos.it",
+            external_id=unique_email,
             data={}
         )
         s.add(m)
         s.commit()
         s.refresh(t)
+        # attach the unique external email to the tenant object for test usage
+        setattr(t, "_external_email", unique_email)
         return t
 
-    # run sync insert on sync engine connection
-    with sync_engine.begin() as conn:
-        tenant = _insert_sync(conn)
+    # run the sync insert function on the async engine so other
+    # async connections see the inserted rows immediately.
+    async with engine.begin() as conn:
+        tenant = await conn.run_sync(_insert_sync)
 
     return tenant
 
@@ -180,10 +185,12 @@ async def test_new_quote_flow_e2e(mocker, db_session, test_tenant, client):
     )
 
     # 4. Costruisci finto evento Pub/Sub Gmail
+    from uuid import uuid4 as _uuid4
+    unique_msg_id = f"msg-{_uuid4()}"
     pubsub_payload = {
         "historyId": "12345",
-        "emailAddress": "preventivi@edilcos.it",  # mappata su test_tenant
-        "messageId": "msg123",
+        "emailAddress": getattr(test_tenant, "_external_email", "preventivi@edilcos.it"),
+        "messageId": unique_msg_id,
     }
     encoded_data = base64.urlsafe_b64encode(
         json.dumps(pubsub_payload).encode("utf-8")
@@ -203,14 +210,13 @@ async def test_new_quote_flow_e2e(mocker, db_session, test_tenant, client):
     # 6. Verifica che RawEvent sia stato creato
     # Use a fresh session to read committed rows created by the app endpoint.
     from app.db.session import SessionLocal as _SessionLocal
+    from sqlalchemy import select
+    from app.db.models import RawEvent
     async with _SessionLocal() as read_db:
-        raw_repo = RawEventRepository(read_db)
-        raw_events = await raw_repo.list_by_tenant(test_tenant.id)  # adatta se serve
+        res = await read_db.execute(select(RawEvent).where(RawEvent.idempotency_key == unique_msg_id))
+        raw_events = res.scalars().all()
     assert len(raw_events) >= 1
-    raw_event = next(
-        (e for e in raw_events if "msg123" in (e.idempotency_key or "")),
-        raw_events[0],
-    )
+    raw_event = raw_events[0]
 
     # 7. Se la pipeline non chiama Normalizer/Router automaticamente,
     #    puoi forzare manualmente questi step:
@@ -226,14 +232,32 @@ async def test_new_quote_flow_e2e(mocker, db_session, test_tenant, client):
     await process_pending_notifications()
     await process_excel_update_queue()
 
-    # 9. Verifica CUSTOMER
-    customer_repo = CustomerRepository(db_session)
-    customers = await customer_repo.list_by_tenant(test_tenant.id)
-    assert any(
-        c.phone == "3331234567"
-        and "Luca" in (getattr(c, "name", "") or getattr(c, "first_name", ""))
-        for c in customers
-    ), "Customer non trovato o con dati errati"
+    # 9. Verifica CUSTOMER (use fresh session to ensure visibility)
+    from app.db.session import SessionLocal as _SessionLocal
+    # Evaluate customer attributes while session is still open to avoid detached instances
+    def digits_only(s: str) -> str:
+        return "".join(ch for ch in (s or "") if ch.isdigit())
+
+    async with _SessionLocal() as read_db:
+        customer_repo = CustomerRepository(read_db)
+        customers = await customer_repo.list_by_tenant(test_tenant.id)
+        # DEBUG: inspect normalized events and quotes
+        from sqlalchemy import select
+        from app.db.models import NormalizedEvent, Quote
+        ne_res = await read_db.execute(select(NormalizedEvent))
+        nes = ne_res.scalars().all()
+        print('DEBUG: normalized events ->', [(str(n.id), str(n.tenant_id), n.event_type, n.normalized_data.get('entities')) for n in nes])
+        print('DEBUG: test_tenant.id ->', str(test_tenant.id), type(test_tenant.id))
+        q_res = await read_db.execute(select(Quote).where(Quote.tenant_id == test_tenant.id))
+        quotes = q_res.scalars().all()
+        print('DEBUG: quotes ->', [(str(q.id), q.status, q.quote_data) for q in quotes])
+        # DEBUG: print customers for troubleshooting
+        print('DEBUG: customers ->', [(str(c.id), c.name, c.phone, c.email) for c in customers])
+        assert any(
+            digits_only(c.phone) == "3331234567"
+            and "Luca" in (getattr(c, "name", "") or getattr(c, "first_name", ""))
+            for c in customers
+        ), "Customer non trovato o con dati errati"
 
     # 10. Verifica QUOTE
     quote_repo = QuoteRepository(db_session)
