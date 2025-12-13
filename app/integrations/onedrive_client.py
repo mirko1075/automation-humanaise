@@ -216,6 +216,24 @@ class OneDriveClient:
             async with session.get(url) as resp:
                 text = await resp.text()
                 if resp.status >= 400:
+                    # If we get 404 and discovery hasn't run, trigger discovery and retry once.
+                    if resp.status == 404 and not self._drive_resolved:
+                        # close session from this call if we created it
+                        if self._external_session is None:
+                            await session.close()
+                        # run discovery (this logs the process)
+                        await self._discover_drive()
+                        # retry the request with possibly updated drive id
+                        session = await self._get_session()
+                        async with session.get(self._item_path_to_api(path) + ":/children") as resp2:
+                            text2 = await resp2.text()
+                            if resp2.status >= 400:
+                                log("ERROR", f"List files failed: {resp2.status} {text2}", module="onedrive_client")
+                                raise RuntimeError(f"List files failed: {resp2.status} {text2}")
+                            data = await resp2.json()
+                            items = data.get("value", [])
+                            log("INFO", f"Listed {len(items)} items", module="onedrive_client")
+                            return items
                     log("ERROR", f"List files failed: {resp.status} {text}", module="onedrive_client")
                     raise RuntimeError(f"List files failed: {resp.status} {text}")
                 data = await resp.json()
@@ -235,6 +253,19 @@ class OneDriveClient:
             async with session.get(url) as resp:
                 text = await resp.text()
                 if resp.status >= 400:
+                    if resp.status == 404 and not self._drive_resolved:
+                        if self._external_session is None:
+                            await session.close()
+                        await self._discover_drive()
+                        session = await self._get_session()
+                        async with session.get(self._item_path_to_api(path)) as resp2:
+                            text2 = await resp2.text()
+                            if resp2.status >= 400:
+                                log("ERROR", f"Get metadata failed: {resp2.status} {text2}", module="onedrive_client")
+                                raise RuntimeError(f"Get metadata failed: {resp2.status} {text2}")
+                            data = await resp2.json()
+                            log("INFO", f"Metadata fetched", module="onedrive_client")
+                            return data
                     log("ERROR", f"Get metadata failed: {resp.status} {text}", module="onedrive_client")
                     raise RuntimeError(f"Get metadata failed: {resp.status} {text}")
                 data = await resp.json()
@@ -253,6 +284,23 @@ class OneDriveClient:
             async with session.get(url) as resp:
                 if resp.status >= 400:
                     text = await resp.text()
+                    if resp.status == 404 and not self._drive_resolved:
+                        if self._external_session is None:
+                            await session.close()
+                        await self._discover_drive()
+                        session = await self._get_session()
+                        async with session.get(self._item_path_to_api(path) + ":/content") as resp2:
+                            if resp2.status >= 400:
+                                text2 = await resp2.text()
+                                log("ERROR", f"Download failed: {resp2.status} {text2}", module="onedrive_client")
+                                raise RuntimeError(f"Download failed: {resp2.status} {text2}")
+                            local_dir = Path(local_path).parent
+                            local_dir.mkdir(parents=True, exist_ok=True)
+                            with open(local_path, "wb") as fh:
+                                async for chunk in resp2.content.iter_chunked(1024 * 64):
+                                    fh.write(chunk)
+                            log("INFO", f"Download completed: {local_path}", module="onedrive_client")
+                            return
                     log("ERROR", f"Download failed: {resp.status} {text}", module="onedrive_client")
                     raise RuntimeError(f"Download failed: {resp.status} {text}")
                 # Stream to file
@@ -279,6 +327,20 @@ class OneDriveClient:
                 async with session.put(url, data=fh) as resp:
                     text = await resp.text()
                     if resp.status >= 400:
+                        if resp.status == 404 and not self._drive_resolved:
+                            if self._external_session is None:
+                                await session.close()
+                            await self._discover_drive()
+                            session = await self._get_session()
+                            with open(local_path, "rb") as fh2:
+                                async with session.put(self._item_path_to_api(path) + ":/content", data=fh2) as resp2:
+                                    text2 = await resp2.text()
+                                    if resp2.status >= 400:
+                                        log("ERROR", f"Upload failed: {resp2.status} {text2}", module="onedrive_client")
+                                        raise RuntimeError(f"Upload failed: {resp2.status} {text2}")
+                                    data2 = await resp2.json()
+                                    log("INFO", f"Upload completed: {path}", module="onedrive_client")
+                                    return data2
                         log("ERROR", f"Upload failed: {resp.status} {text}", module="onedrive_client")
                         raise RuntimeError(f"Upload failed: {resp.status} {text}")
                     data = await resp.json()
