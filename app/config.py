@@ -3,6 +3,7 @@
 Configuration management using Pydantic Settings.
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from typing import Optional
 
 class Settings(BaseSettings):
@@ -18,9 +19,10 @@ class Settings(BaseSettings):
     ONEDRIVE_EXCEL_FILE_ID: Optional[str] = None
     SLACK_WEBHOOK_URL: Optional[str] = None
     # Microsoft Graph / OneDrive configuration
-    ONEDRIVE_BASE_PATH: str = "/TEST"
+    ONEDRIVE_BASE_PATH: str = "/EDILCOS/TEST"
     MS_GRAPH_BASE_URL: str = "https://graph.microsoft.com/v1.0"
-    MS_DRIVE_ID: str = "me/drive"
+    # Accept either MS_DRIVE_ID or legacy ONEDRIVE_DRIVE_ID environment variable
+    MS_DRIVE_ID: str = Field("me/drive", env=("MS_DRIVE_ID", "ONEDRIVE_DRIVE_ID"))
     MS_ACCESS_TOKEN: Optional[str] = None  # Test token only; do NOT hardcode in code
 
 settings = Settings()
