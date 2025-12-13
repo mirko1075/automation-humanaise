@@ -17,5 +17,10 @@ class Settings(BaseSettings):
     ONEDRIVE_DRIVE_ID: Optional[str] = None
     ONEDRIVE_EXCEL_FILE_ID: Optional[str] = None
     SLACK_WEBHOOK_URL: Optional[str] = None
+    # Microsoft Graph / OneDrive configuration
+    ONEDRIVE_BASE_PATH: str = "/TEST"
+    MS_GRAPH_BASE_URL: str = "https://graph.microsoft.com/v1.0"
+    MS_DRIVE_ID: str = "me/drive"
+    MS_ACCESS_TOKEN: Optional[str] = None  # Test token only; do NOT hardcode in code
 
 settings = Settings()

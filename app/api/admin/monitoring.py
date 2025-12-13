@@ -3,6 +3,7 @@ Admin monitoring endpoints for events and audits.
 """
 from typing import Optional
 from datetime import datetime
+from sqlalchemy import String as _String, cast as _cast
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_async_session
 from app.db.models import RawEvent, NormalizedEvent
 from sqlalchemy import text
+from app.db.models import AuditLog
 
 router = APIRouter(prefix="/admin/monitoring", tags=["admin", "monitoring"])
 
@@ -38,7 +40,11 @@ async def list_raw_events(
     stmt = select(RawEvent)
     clauses = []
     if tenant_id:
-        clauses.append(RawEvent.tenant_id == tenant_id)
+        # Normalize tenant_id comparison by removing hyphens. SQLite stores
+        # UUIDs slightly differently during tests; normalizing both sides
+        # avoids mismatches between hyphenated and non-hyphenated forms.
+        norm_param = tenant_id.replace('-', '').lower()
+        clauses.append(func.replace(_cast(RawEvent.tenant_id, _String), '-', '') == norm_param)
     # Date parsing
     try:
         sdt = _parse_iso_date(start_date)
@@ -50,12 +56,22 @@ async def list_raw_events(
     if edt:
         clauses.append(RawEvent.created_at <= edt)
     if event_type:
-        # Use a robust JSONB text extraction using SQL: payload->>'event_type' = :event_type
-        # Build a parameterized text clause to avoid SQL injection
-        json_clause = text("(payload->> 'event_type') = :event_type")
-        stmt = stmt.where(and_(*clauses)) if clauses else stmt
-        stmt = stmt.where(json_clause).params(event_type=event_type)
-        # we already applied clauses above when setting stmt
+        # Build a dialect-aware JSON extraction clause. Prefer Postgres JSONB ->> when
+        # running against Postgres; for SQLite use json_extract.
+        dialect_name = None
+        try:
+            dialect_name = db.bind.dialect.name  # type: ignore[attr-defined]
+        except Exception:
+            dialect_name = None
+
+        if dialect_name == "postgresql":
+            json_clause = text("(payload->> 'event_type') = :event_type")
+            stmt = stmt.where(and_(*clauses)) if clauses else stmt
+            stmt = stmt.where(json_clause).params(event_type=event_type)
+        else:
+            # Fallback for SQLite and others: use SQLAlchemy func.json_extract
+            stmt = stmt.where(and_(*clauses)) if clauses else stmt
+            stmt = stmt.where(func.json_extract(RawEvent.payload, "$.event_type") == event_type)
         clauses = []
     if clauses:
         stmt = stmt.where(and_(*clauses))
@@ -83,23 +99,23 @@ async def list_discarded_audits(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Return audit logs with action = 'preventivi_discarded'. Uses parameterized SQL to avoid injection."""
-    sql = "SELECT id, tenant_id, flow_id, action, details, created_at FROM audit_logs WHERE action=:action"
-    params = {"action": "preventivi_discarded", "limit": limit, "offset": offset}
+    stmt = select(AuditLog)
+    clauses = [AuditLog.action == "preventivi_discarded"]
     if tenant_id:
-        sql += " AND tenant_id = :tenant_id"
-        params["tenant_id"] = tenant_id
-    sql += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
-    result = await db.execute(text(sql), params)
-    rows = result.fetchall()
+        norm_param = tenant_id.replace('-', '').lower()
+        clauses.append(func.replace(_cast(AuditLog.tenant_id, _String), '-', '') == norm_param)
+    stmt = stmt.where(and_(*clauses)).order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
     data = []
     for r in rows:
         data.append({
-            "id": str(r[0]),
-            "tenant_id": str(r[1]) if r[1] else None,
-            "flow_id": r[2],
-            "action": r[3],
-            "details": r[4],
-            "created_at": r[5].isoformat() if r[5] else None,
+            "id": str(r.id),
+            "tenant_id": str(r.tenant_id) if r.tenant_id else None,
+            "flow_id": r.flow_id,
+            "action": r.action,
+            "details": r.details,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
         })
     return {"status": "success", "data": data}
 
@@ -123,7 +139,8 @@ async def list_normalized_events(
     stmt = select(NormalizedEvent)
     clauses = []
     if tenant_id:
-        clauses.append(NormalizedEvent.tenant_id == tenant_id)
+        norm_param = tenant_id.replace('-', '').lower()
+        clauses.append(func.replace(_cast(NormalizedEvent.tenant_id, _String), '-', '') == norm_param)
     if event_type:
         clauses.append(NormalizedEvent.event_type == event_type)
     if sdt:
@@ -156,17 +173,29 @@ async def audit_trail_by_idempotency(
     """Return the full audit trail (all audit_logs) for a given idempotency_key."""
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="idempotency_key is required")
-    sql = "SELECT id, tenant_id, flow_id, action, details, created_at FROM audit_logs WHERE details->> 'idempotency_key' = :idempotency_key ORDER BY created_at ASC"
-    result = await db.execute(text(sql), {"idempotency_key": idempotency_key})
-    rows = result.fetchall()
+    # Dialect-aware JSON extraction for idempotency_key inside details JSON
+    dialect_name = None
+    try:
+        dialect_name = db.bind.dialect.name  # type: ignore[attr-defined]
+    except Exception:
+        dialect_name = None
+
+    stmt = select(AuditLog)
+    if dialect_name == "postgresql":
+        stmt = stmt.where(text("details->> 'idempotency_key' = :idempotency_key")).params(idempotency_key=idempotency_key)
+    else:
+        stmt = stmt.where(func.json_extract(AuditLog.details, "$.idempotency_key") == idempotency_key)
+    stmt = stmt.order_by(AuditLog.created_at.asc())
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
     data = []
     for r in rows:
         data.append({
-            "id": str(r[0]),
-            "tenant_id": str(r[1]) if r[1] else None,
-            "flow_id": r[2],
-            "action": r[3],
-            "details": r[4],
-            "created_at": r[5].isoformat() if r[5] else None,
+            "id": str(r.id),
+            "tenant_id": str(r.tenant_id) if r.tenant_id else None,
+            "flow_id": r.flow_id,
+            "action": r.action,
+            "details": r.details,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
         })
     return {"status": "success", "data": data}

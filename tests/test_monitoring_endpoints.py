@@ -23,18 +23,39 @@ async def client():
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    # Ensure tables exist when running tests with SQLite by creating schema
-    try:
-        if str(engine.url).startswith("sqlite"):
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.drop_all)
-                await conn.run_sync(Base.metadata.create_all)
-    except Exception:
-        pass
+async def db_session(tmp_path):
+    """Create a dedicated SQLite async engine for tests and yield a session.
 
-    async with SessionLocal() as db:
-        yield db
+    This avoids using the project's asyncpg/Postgres engine during pytest runs,
+    which can cause "another operation in progress" and loop-mismatch errors.
+    """
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+
+    db_file = tmp_path / "test_db.sqlite"
+    test_url = f"sqlite+aiosqlite:///{db_file}"
+    test_engine = create_async_engine(test_url, future=True, echo=False)
+    TestSessionLocal = sessionmaker(bind=test_engine, class_=AsyncSession, expire_on_commit=False)
+
+    # Create tables
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with TestSessionLocal() as session:
+        # Override FastAPI dependency to use this test session
+        from app.main import app as _app
+        from app.db.session import get_async_session as real_dep
+
+        async def _get_test_session():
+            async with TestSessionLocal() as s:
+                yield s
+
+        _app.dependency_overrides.clear()
+        _app.dependency_overrides[real_dep] = _get_test_session
+
+        yield session
+
+    await test_engine.dispose()
 
 
 @pytest_asyncio.fixture
