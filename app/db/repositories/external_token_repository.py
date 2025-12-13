@@ -12,11 +12,23 @@ class ExternalTokenRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, tenant_id: UUID, flow_id: str, service: str, token: str) -> ExternalToken:
+    async def create(self, tenant_id: UUID, flow_id: Optional[str], provider: str, token: str, external_id: Optional[str] = None, data: Optional[dict] = None) -> ExternalToken:
+        """Create a new ExternalToken record.
+
+        Args:
+            tenant_id: tenant UUID or None
+            flow_id: optional flow id
+            provider: provider name (e.g. 'google')
+            token: access token
+            external_id: optional external identifier (email or external user id)
+            data: optional JSON blob for extra token data (refresh_token, expires_at)
+        """
         ext_token = ExternalToken(
             tenant_id=tenant_id,
             flow_id=flow_id,
-            service=service,
+            provider=provider,
+            external_id=external_id,
+            data=data,
             token=token
         )
         self.db.add(ext_token)

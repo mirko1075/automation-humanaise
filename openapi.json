@@ -191,5 +191,30 @@
         "responses": {"200": {"description": "List of Gmail raw events"}}
       }
     }
+    "/auth/google/login": {
+      "get": {
+        "summary": "Initiate Google OAuth login",
+        "operationId": "googleLogin",
+        "parameters": [
+          {"name": "tenant_id", "in": "query", "schema": {"type": "string"}, "description": "Optional tenant id to store in state"}
+        ],
+        "responses": {"302": {"description": "Redirect to Google OAuth"}}
+      }
+    },
+    "/auth/google/callback": {
+      "get": {
+        "summary": "Google OAuth callback",
+        "operationId": "googleCallback",
+        "parameters": [
+          {"name": "code", "in": "query", "schema": {"type": "string"}},
+          {"name": "state", "in": "query", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Token stored"},
+          "400": {"description": "Bad request"},
+          "502": {"description": "Token exchange failed"}
+        }
+      }
+    },
   }
 }
