@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     MS_GRAPH_BASE_URL: str = "https://graph.microsoft.com/v1.0"
     # Accept either MS_DRIVE_ID or legacy ONEDRIVE_DRIVE_ID environment variable
     MS_DRIVE_ID: str = Field("me/drive", env=("MS_DRIVE_ID", "ONEDRIVE_DRIVE_ID"))
+    ONEDRIVE_HOSTNAME: Optional[str] = None  # optional SharePoint host e.g. netorg...-my.sharepoint.com
     MS_ACCESS_TOKEN: Optional[str] = None  # Test token only; do NOT hardcode in code
 
 settings = Settings()
