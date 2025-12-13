@@ -1,3 +1,14 @@
+## v1.3.3 — <short title> (2025-12-13)
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
 ## v1.3.0 — Multi-Protocol NAS Provider System (2024-12-11)
 
 ### Added
