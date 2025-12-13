@@ -4,4 +4,4 @@ local-db/.env
 .venv
 __pycache__/
 *.pyc
-instance/
+instance/.test_all.db
