@@ -1,15 +1,22 @@
-## v1.3.3 — Release Preparation & Tooling (2025-12-13)
+## v1.3.3 — Microsoft Graph OAuth App-Only & OneDrive Improvements (2025-12-13)
 
 ### Added
-- `scripts/bump_version.py`: utility to bump the top-level `VERSION` file, prepend a changelog stub to `CHANGELOG.md`, and optionally create a local commit.
-- Top-level `VERSION` file added as single-source-of-truth for application version.
+- Microsoft Graph OAuth2 app-only authentication (`OAuthAuth`) for OneDrive/SharePoint (`client_credentials` flow).
+- `ONEDRIVE_AUTH_MODE` configuration to select between `test` (legacy) and `app` (OAuth app-only).
+- In-memory token caching with automatic refresh and structured logs for token acquisition/refresh.
+- Failure tests for OAuth token errors and Graph 403 scenarios.
+- Activation and operational docs: `docs/ACTIVATION.md`, `docs/ONEDRIVE.md` (OAuth activation checklist and troubleshooting).
 
 ### Changed
-- `app.__init__` now exposes `__version__` by reading the top-level `VERSION` file at import time.
-- Reorganized `postman_collection.json` to add a dedicated `Admin` group for monitoring and integrations requests.
+- OneDrive auth now defaults to OAuth app-only (`ONEDRIVE_AUTH_MODE=app`) for production.
+- `OneDriveClient` accepts async auth providers and selects `OAuthAuth` by default when in `app` mode.
+- Postman and OpenAPI docs updated to indicate server-side app-only authentication.
 
-### Fixed
-- Minor formatting and consistency fixes in `CHANGELOG.md` and Postman samples.
+### Notes
+- Required env vars for `app` mode: `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT_ID` (startup will fail fast if missing).
+- Required Graph permissions (admin consent): `Sites.ReadWrite.All`, `Files.ReadWrite.All`.
+- Discovery improvements for SharePoint-backed personal sites remain in place and log decisions to `integration_events`.
+
 
 
 ## v1.3.0 — Multi-Protocol NAS Provider System (2024-12-11)
