@@ -5,3 +5,7 @@ local-db/.env
 __pycache__/
 *.pyc
 instance/.test_all.db
+
+.env
+.env.example
+client_secret_*.json

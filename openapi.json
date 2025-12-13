@@ -3,7 +3,7 @@
   "info": {
     "title": "Edilcos Automation Backend",
     "version": "1.0.0",
-    "description": "OpenAPI specification for health and basic admin endpoints.\n\nNote: OneDrive/SharePoint integration uses server-side OAuth2 app-only (client credentials). The server manages tokens and no client Authorization header is required.",
+     "description": "Edilcos Automation Backend API. Note: OneDrive endpoints use server-side OAuth app-only; clients do not supply tokens.",
   },
   "servers": [
     { "url": "http://localhost:9100", "description": "Local development" },
@@ -56,6 +56,17 @@
       }
     }
     ,
+    "/admin/ready": {
+      "get": {
+        "summary": "Readiness check (database + OneDrive)",
+        "operationId": "getAdminReady",
+        "description": "Performs database readiness checks and OneDrive/SharePoint readiness using server-side OAuth app-only. Returns 503 if OneDrive or DB is not ready.",
+        "responses": {
+          "200": { "description": "Ready" },
+          "503": { "description": "Not ready; details in response" }
+        }
+      }
+    },
     "/admin/integrations/onedrive/logs": {
       "get": {
         "summary": "List OneDrive integration events",
@@ -130,6 +141,29 @@
       }
     },
     "/admin/monitoring/discarded_audits": {
+    "/admin/health/onedrive": {
+      "get": {
+        "summary": "OneDrive/SharePoint connectivity health check",
+        "operationId": "onedriveHealthCheck",
+        "description": "Performs token acquisition, drive metadata and root/children checks. Optional safe write when `ONEDRIVE_HEALTHCHECK_WRITE=true`.",
+        "responses": {
+          "200": {
+            "description": "Health result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "enum": ["ok", "fail"]},
+                    "steps": {"type": "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
       "get": {
         "summary": "List Discarded Audit Events",
         "operationId": "listDiscardedAudits",

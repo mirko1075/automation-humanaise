@@ -178,6 +178,9 @@ class OneDriveClient:
         """
         if self._drive_resolved:
             return
+        # If running in app-only mode, avoid calling /me or delegated endpoints.
+        mode = (settings.ONEDRIVE_AUTH_MODE or "app").lower()
+        skip_delegated = mode == "app"
         session = await self._get_session()
         # Persist a decision-level discovery_attempt event
         async with SessionLocal() as db:
@@ -195,88 +198,90 @@ class OneDriveClient:
                 pass
 
         try:
-            # 1) /me/drive
-            try:
-                # Log start of discovery attempt for /me/drive
-                log("INFO", "OneDrive discovery: trying /me/drive", module="onedrive_client")
-                async with session.get(f"{self.base_url}/me/drive") as resp:
-                    status = resp.status
-                    # Do not log token or response body
-                    if status == 200:
-                        data = await resp.json()
-                        did = data.get("id")
-                        if did:
-                            self._drive_id_cached = did
-                            self._drive_resolved = True
-                            log("INFO", f"OneDrive discovery: using drive=drives/{did}", module="onedrive_client")
-                            # Persist discovery_success
-                            async with SessionLocal() as db:
-                                repo = IntegrationEventRepository(db)
-                                try:
-                                    await repo.create(
-                                        integration="onedrive",
-                                        event_type="discovery_success",
-                                        level="INFO",
-                                        message="Resolved drive via /me/drive",
-                                        context={"drive_id": did},
-                                    )
-                                except Exception:
-                                    pass
-                            return
-                    elif status == 404:
-                        log("WARNING", f"OneDrive discovery: /me/drive returned 404, trying /users/{{upn}}/drive", module="onedrive_client")
-            except Exception:
-                pass
-
-            # 2) /users/{upn}/drive
-            try:
-                async with session.get(f"{self.base_url}/me") as me_resp:
-                    me_status = me_resp.status
-                    if me_status == 200:
-                        me = await me_resp.json()
-                        upn = me.get("userPrincipalName")
-                        if upn:
-                            async with session.get(f"{self.base_url}/users/{upn}/drive") as uresp:
-                                u_status = uresp.status
-                                if u_status == 200:
-                                    data = await uresp.json()
-                                    did = data.get("id")
-                                    if did:
-                                        self._drive_id_cached = did
-                                        self._drive_resolved = True
-                                        log("INFO", f"OneDrive discovery: using drive=drives/{did}", module="onedrive_client")
-                                        async with SessionLocal() as db:
-                                            repo = IntegrationEventRepository(db)
-                                            try:
-                                                await repo.create(
-                                                    integration="onedrive",
-                                                    event_type="discovery_success",
-                                                    level="INFO",
-                                                    message="Resolved drive via /users/{upn}/drive",
-                                                    context={"drive_id": did, "user_upn": upn},
-                                                )
-                                            except Exception:
-                                                pass
-                                        return
-                                elif u_status == 404:
-                                    log("WARNING", f"OneDrive discovery: /users/{{upn}}/drive returned 404, trying site-based discovery (hostname={settings.ONEDRIVE_HOSTNAME})", module="onedrive_client")
-                                    # Try users/{id}/drive as a secondary attempt using the user id from /me
+            # 1) /me/drive (skip in app-only mode)
+            if not skip_delegated:
+                try:
+                    # Log start of discovery attempt for /me/drive
+                    log("INFO", "OneDrive discovery: trying /me/drive", module="onedrive_client")
+                    async with session.get(f"{self.base_url}/me/drive") as resp:
+                        status = resp.status
+                        # Do not log token or response body
+                        if status == 200:
+                            data = await resp.json()
+                            did = data.get("id")
+                            if did:
+                                self._drive_id_cached = did
+                                self._drive_resolved = True
+                                log("INFO", f"OneDrive discovery: using drive=drives/{did}", module="onedrive_client")
+                                # Persist discovery_success
+                                async with SessionLocal() as db:
+                                    repo = IntegrationEventRepository(db)
                                     try:
-                                        user_id = me.get("id")
-                                        if user_id:
-                                            async with session.get(f"{self.base_url}/users/{user_id}/drive") as uidresp:
-                                                if uidresp.status == 200:
-                                                    udata = await uidresp.json()
-                                                    udid = udata.get("id")
-                                                    if udid:
-                                                        self._drive_id_cached = udid
-                                                        self._drive_resolved = True
-                                                        log("INFO", f"OneDrive discovery: using drive=drives/{udid} (via user id)", module="onedrive_client")
-                                                        return
+                                        await repo.create(
+                                            integration="onedrive",
+                                            event_type="discovery_success",
+                                            level="INFO",
+                                            message="Resolved drive via /me/drive",
+                                            context={"drive_id": did},
+                                        )
                                     except Exception:
                                         pass
-            except Exception as e:
-                log("WARNING", "OneDrive discovery exception", module="onedrive_client", error=str(e))
+                                return
+                        elif status == 404:
+                            log("WARNING", f"OneDrive discovery: /me/drive returned 404, trying /users/{{upn}}/drive", module="onedrive_client")
+                except Exception:
+                    pass
+
+            # 2) /users/{upn}/drive (skip in app-only mode)
+            if not skip_delegated:
+                try:
+                    async with session.get(f"{self.base_url}/me") as me_resp:
+                        me_status = me_resp.status
+                        if me_status == 200:
+                            me = await me_resp.json()
+                            upn = me.get("userPrincipalName")
+                            if upn:
+                                async with session.get(f"{self.base_url}/users/{upn}/drive") as uresp:
+                                    u_status = uresp.status
+                                    if u_status == 200:
+                                        data = await uresp.json()
+                                        did = data.get("id")
+                                        if did:
+                                            self._drive_id_cached = did
+                                            self._drive_resolved = True
+                                            log("INFO", f"OneDrive discovery: using drive=drives/{did}", module="onedrive_client")
+                                            async with SessionLocal() as db:
+                                                repo = IntegrationEventRepository(db)
+                                                try:
+                                                    await repo.create(
+                                                        integration="onedrive",
+                                                        event_type="discovery_success",
+                                                        level="INFO",
+                                                        message="Resolved drive via /users/{upn}/drive",
+                                                        context={"drive_id": did, "user_upn": upn},
+                                                    )
+                                                except Exception:
+                                                    pass
+                                            return
+                                    elif u_status == 404:
+                                        log("WARNING", f"OneDrive discovery: /users/{{upn}}/drive returned 404, trying site-based discovery (hostname={settings.ONEDRIVE_HOSTNAME})", module="onedrive_client")
+                                        # Try users/{id}/drive as a secondary attempt using the user id from /me
+                                        try:
+                                            user_id = me.get("id")
+                                            if user_id:
+                                                async with session.get(f"{self.base_url}/users/{user_id}/drive") as uidresp:
+                                                    if uidresp.status == 200:
+                                                        udata = await uidresp.json()
+                                                        udid = udata.get("id")
+                                                        if udid:
+                                                            self._drive_id_cached = udid
+                                                            self._drive_resolved = True
+                                                            log("INFO", f"OneDrive discovery: using drive=drives/{udid} (via user id)", module="onedrive_client")
+                                                            return
+                                        except Exception:
+                                            pass
+                except Exception as e:
+                    log("WARNING", "OneDrive discovery exception", module="onedrive_client", error=str(e))
 
             # 3) site-based discovery using optional ONEDRIVE_HOSTNAME or derivation
             hostname = settings.ONEDRIVE_HOSTNAME
@@ -426,11 +431,18 @@ class OneDriveClient:
                 await session.close()
         # mark as resolved to avoid repeated attempts
         self._drive_resolved = True
-        # If we reach here without a cached drive id, log fallback once and persist a decision-level event
+        # If we reach here without a cached drive id, decide next steps based on auth mode
         if not self._drive_id_cached:
             # final fallback to configured MS_DRIVE_ID
-            log("WARNING", f"OneDrive discovery failed; falling back to configured MS_DRIVE_ID={settings.MS_DRIVE_ID}", module="onedrive_client")
-            log("INFO", f"OneDrive discovery: using drive={settings.MS_DRIVE_ID}", module="onedrive_client")
+            configured = settings.MS_DRIVE_ID
+            # If running app-only, do not accept 'me/drive' as a valid fallback
+            if skip_delegated and (not configured or configured == "me/drive"):
+                # Explicit error: app-only requires an explicit drive id or working site discovery
+                log("ERROR", "OneDrive discovery failed under app-only auth and no explicit MS_DRIVE_ID provided", module="onedrive_client")
+                raise RuntimeError("OneDrive discovery failed in app-only mode; set MS_DRIVE_ID to a drive id or ensure ONEDRIVE_HOSTNAME and application permissions are correct")
+
+            log("WARNING", f"OneDrive discovery failed; falling back to configured MS_DRIVE_ID={configured}", module="onedrive_client")
+            log("INFO", f"OneDrive discovery: using drive={configured}", module="onedrive_client")
             try:
                 async with SessionLocal() as db:
                     repo = IntegrationEventRepository(db)
@@ -488,6 +500,83 @@ class OneDriveClient:
                 items = data.get("value", [])
                 log("INFO", f"Listed {len(items)} items", module="onedrive_client")
                 return items
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    # Health-check helpers (convenience wrappers)
+    async def get_drive(self, drive_id: str) -> Dict[str, Any]:
+        """GET /drives/{drive_id} metadata"""
+        url = f"{self.base_url}/drives/{drive_id}"
+        session = await self._get_session()
+        try:
+            async with session.get(url) as resp:
+                text = await resp.text()
+                if resp.status >= 400:
+                    log("ERROR", f"Get drive failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"Get drive failed: {resp.status} {text}")
+                return await resp.json()
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    async def get_drive_root(self, drive_id: str) -> Dict[str, Any]:
+        """GET /drives/{drive_id}/root metadata"""
+        url = f"{self.base_url}/drives/{drive_id}/root"
+        session = await self._get_session()
+        try:
+            async with session.get(url) as resp:
+                text = await resp.text()
+                if resp.status >= 400:
+                    log("ERROR", f"Get drive root failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"Get drive root failed: {resp.status} {text}")
+                return await resp.json()
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    async def list_drive_root_children(self, drive_id: str) -> Dict[str, Any]:
+        """GET /drives/{drive_id}/root/children"""
+        url = f"{self.base_url}/drives/{drive_id}/root/children"
+        session = await self._get_session()
+        try:
+            async with session.get(url) as resp:
+                text = await resp.text()
+                if resp.status >= 400:
+                    log("ERROR", f"List drive root children failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"List drive root children failed: {resp.status} {text}")
+                return await resp.json()
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    async def create_folder(self, drive_id: str, parent_item_id: str = "root", name: str = "_healthcheck") -> Dict[str, Any]:
+        """Create a folder under the given parent. Returns created item metadata."""
+        url = f"{self.base_url}/drives/{drive_id}/items/{parent_item_id}/children"
+        payload = {"name": name, "folder": {}, "@microsoft.graph.conflictBehavior": "rename"}
+        session = await self._get_session()
+        try:
+            async with session.post(url, json=payload) as resp:
+                text = await resp.text()
+                if resp.status >= 400:
+                    log("ERROR", f"Create folder failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"Create folder failed: {resp.status} {text}")
+                return await resp.json()
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    async def delete_item(self, drive_id: str, item_id: str) -> None:
+        """Delete an item by id: DELETE /drives/{drive_id}/items/{item_id}"""
+        url = f"{self.base_url}/drives/{drive_id}/items/{item_id}"
+        session = await self._get_session()
+        try:
+            async with session.delete(url) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    log("ERROR", f"Delete item failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"Delete item failed: {resp.status} {text}")
+                return
         finally:
             if self._external_session is None:
                 await session.close()

@@ -1,5 +1,15 @@
 ## v1.3.3 — Microsoft Graph OAuth App-Only & OneDrive Improvements (2025-12-13)
 
+## v1.3.4 — Auth Callback & Docs (2025-12-13)
+
+### Added
+- Placeholder endpoint for Google OAuth callback: `GET /auth/google/callback`. Returns 400 when `code` is missing; intended as a minimal dev hook until full OAuth flow is integrated.
+- OpenAPI and Postman collection updated to include the OAuth callback and OneDrive health/readiness notes.
+
+### Changed
+- Tests: stabilized OneDrive enqueue test to avoid cross-event-loop DB commit failures in CI by adding a safe test fallback and audit-based verification.
+
+
 ### Added
 - Microsoft Graph OAuth2 app-only authentication (`OAuthAuth`) for OneDrive/SharePoint (`client_credentials` flow).
 - `ONEDRIVE_AUTH_MODE` configuration to select between `test` (legacy) and `app` (OAuth app-only).
@@ -194,6 +204,23 @@
 
 ### Notes
 - For production deployments, prefer to integrate these schema changes into a managed Alembic migration rather than running ad-hoc SQL scripts.
+
+### Added (Operator)
+- `GET /admin/health/onedrive` - New admin health endpoint to validate server-side OAuth token acquisition and connectivity to the configured OneDrive/SharePoint drive. Performs optional safe write when `ONEDRIVE_HEALTHCHECK_WRITE=true`.
+
+
+## v1.4.0 — OneDrive Readiness Integration (2025-12-13)
+
+### Added
+- Integrate OneDrive readiness into `/admin/ready` so Kubernetes readiness checks verify both database and OneDrive connectivity.
+- New admin endpoint remains: `GET /admin/health/onedrive` for operator-driven checks (token, drive, root, children and optional safe write).
+
+### Changed
+- `/admin/ready` now returns HTTP 503 with detailed `reason` when OneDrive is not ready. This avoids starting pods that would fail due to missing external dependencies.
+
+### Notes
+- `ONEDRIVE_HEALTHCHECK_WRITE` controls whether the readiness check performs a safe create+delete operation on the target drive (default: false).
+- The OneDrive health checks are performed using server-side OAuth app-only credentials; ensure `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT_ID` and appropriate Graph application permissions are configured in production.
 
 
 ---

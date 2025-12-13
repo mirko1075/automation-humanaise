@@ -1,3 +1,35 @@
+## Activation Checklist
+
+This document guides operators through enabling OneDrive/SharePoint integration with OAuth app-only.
+
+1. Azure App Registration
+   - Create an app registration in Azure AD.
+   - Under "Certificates & secrets" create a client secret and copy the value.
+   - Under "API permissions" add Application permissions (not delegated) depending on needs, e.g.:
+     - Files.Read.All
+     - Files.ReadWrite.All
+     - Sites.Read.All
+   - Click "Grant admin consent" for the tenant.
+
+2. Environment Variables
+   - In your deployment or `.env` set:
+     - `ONEDRIVE_AUTH_MODE=app`
+     - `MS_CLIENT_ID` (application ID)
+     - `MS_CLIENT_SECRET` (client secret value)
+     - `MS_TENANT_ID` (tenant GUID)
+     - Optional: `MS_DRIVE_ID`, `ONEDRIVE_HOSTNAME`, `ONEDRIVE_BASE_PATH`
+
+3. Startup validation
+   - The app validates required OAuth env vars at startup when `ONEDRIVE_AUTH_MODE=app`.
+   - If missing, startup will fail with an explanatory message.
+
+4. Test the integration
+   - Locally: run `PYTHONPATH=. python3 scripts/check_onedrive_auth.py` to validate token acquisition.
+   - End-to-end: run `PYTHONPATH=. python3 scripts/onedrive_e2e_test.py` (this executes real Graph API calls).
+
+5. Production considerations
+   - Store `MS_CLIENT_SECRET` in a secrets manager (do not commit to git).
+   - Consider using a shared token cache (Redis) for multi-worker deployments.
 # Activation Checklist
 
 This file lists the steps to activate the system in a new environment.

@@ -18,6 +18,8 @@ from pathlib import Path
 
 from app.integrations.onedrive_client import OneDriveClient, TestTokenAuth
 from app.config import settings
+import aiohttp
+import json
 
 
 async def main() -> None:
@@ -30,6 +32,7 @@ async def main() -> None:
     print(f"Using ONEDRIVE_BASE_PATH: {base}")
 
     try:
+        # Trigger client discovery and use the client directly (do not attempt to create paths here)
         items = await client.list_files("")
         print(f"Listed {len(items)} items in {base}")
     except Exception as e:

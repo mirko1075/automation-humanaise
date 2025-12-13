@@ -171,6 +171,7 @@ pytest tests/ --cov=app --cov-report=html
 - `GET /admin/health` - Basic health check
 - `GET /admin/health/deep` - Deep health check (DB, external services)
 - `GET /admin/ready` - Kubernetes readiness probe
+  - Note: `/admin/ready` also verifies OneDrive/SharePoint connectivity (using server-side OAuth app-only). If OneDrive is not ready the endpoint returns HTTP 503 and a `detail` payload explaining the reason. Use `ONEDRIVE_HEALTHCHECK_WRITE=true` to enable an optional safe write test.
 
 ### Webhooks
 - `POST /gmail/webhook` - Gmail Pub/Sub webhook receiver

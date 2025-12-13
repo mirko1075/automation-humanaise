@@ -31,5 +31,7 @@ class Settings(BaseSettings):
     MS_CLIENT_ID: Optional[str] = None
     MS_CLIENT_SECRET: Optional[str] = None
     MS_TENANT_ID: Optional[str] = None
+    # Whether health check should perform a temporary write (create+delete folder)
+    ONEDRIVE_HEALTHCHECK_WRITE: bool = Field(False, env="ONEDRIVE_HEALTHCHECK_WRITE")
 
 settings = Settings()

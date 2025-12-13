@@ -18,7 +18,7 @@ import httpx
 
 from app.main import app
 from app.db.session import SessionLocal
-from app.db.session import engine, Base
+from app.db.session import engine, Base, ensure_tables_async
 from app.db.models import Tenant, ExternalToken  # adattare se i nomi differiscono
 
 from app.db.repositories.customer_repository import CustomerRepository
@@ -42,8 +42,7 @@ async def db_session():
     try:
         if str(engine.url).startswith("sqlite"):
             async with engine.begin() as conn:
-                # Ensure schema matches current models by dropping and recreating
-                await conn.run_sync(Base.metadata.drop_all)
+                # Ensure all tables exist for tests (create if missing)
                 await conn.run_sync(Base.metadata.create_all)
     except Exception:
         pass
@@ -61,25 +60,37 @@ async def test_tenant(db_session):
       - ExternalToken mappa email Gmail → tenant_id (provider='gmail')
     Adatta ai tuoi modelli reali se diverso.
     """
-    tenant = Tenant(
-        id=uuid4(),
-        name="Edilcos Test",
-        status="active",
-        active_flows=["preventivi_v1"],
-    )
-    db_session.add(tenant)
+    # Use the synchronous engine to insert tenant and mapping so other
+    # connections/sessions see them immediately (avoids async session visibility issues).
+    sync_engine = engine.sync_engine
+    def _insert_sync(conn):
+        from sqlalchemy.orm import Session as SyncSession
+        s = SyncSession(bind=conn)
+        t = Tenant(
+            id=uuid4(),
+            name="Edilcos Test",
+            status="active",
+            active_flows=["preventivi_v1"],
+        )
+        s.add(t)
+        s.flush()
+        from app.db.models import ExternalToken as ET
+        m = ET(
+            id=uuid4(),
+            tenant_id=t.id,
+            provider="gmail",
+            external_id="preventivi@edilcos.it",
+            data={}
+        )
+        s.add(m)
+        s.commit()
+        s.refresh(t)
+        return t
 
-    gmail_mapping = ExternalToken(
-        id=uuid4(),
-        tenant_id=tenant.id,
-        provider="gmail",
-        external_id="preventivi@edilcos.it",  # emailAddress che useremo nel Pub/Sub fake
-        data={},
-    )
-    db_session.add(gmail_mapping)
+    # run sync insert on sync engine connection
+    with sync_engine.begin() as conn:
+        tenant = _insert_sync(conn)
 
-    await db_session.commit()
-    await db_session.refresh(tenant)
     return tenant
 
 
@@ -190,8 +201,11 @@ async def test_new_quote_flow_e2e(mocker, db_session, test_tenant, client):
     assert resp.status_code == 200, resp.text
 
     # 6. Verifica che RawEvent sia stato creato
-    raw_repo = RawEventRepository(db_session)
-    raw_events = await raw_repo.list_by_tenant(test_tenant.id)  # adatta se serve
+    # Use a fresh session to read committed rows created by the app endpoint.
+    from app.db.session import SessionLocal as _SessionLocal
+    async with _SessionLocal() as read_db:
+        raw_repo = RawEventRepository(read_db)
+        raw_events = await raw_repo.list_by_tenant(test_tenant.id)  # adatta se serve
     assert len(raw_events) >= 1
     raw_event = next(
         (e for e in raw_events if "msg123" in (e.idempotency_key or "")),
