@@ -1,0 +1,203 @@
+"""app/integrations/onedrive_client.py
+OneDrive client wrapper for Microsoft Graph operations.
+
+Responsibilities:
+- Provide an auth interface used by the client (get_auth_headers)
+- TestTokenAuth reads `MS_ACCESS_TOKEN` from env for manual testing
+- OneDriveClient exposes: upload_file, download_file, list_files, get_file_metadata
+
+Notes:
+- OAuth flows are intentionally NOT implemented here. See `OAuthAuth` placeholder.
+"""
+from __future__ import annotations
+
+from typing import Protocol, Dict, Any, Optional, List
+import os
+import aiohttp
+import asyncio
+from pathlib import Path
+from app.config import settings
+from app.monitoring.logger import log
+
+
+class MicrosoftAuth(Protocol):
+    """Auth interface providing headers for requests."""
+
+    def get_auth_headers(self) -> Dict[str, str]:
+        ...
+
+
+class TestTokenAuth:
+    """Simple auth provider that reads `MS_ACCESS_TOKEN` from env/settings.
+
+    This is intended for manual testing with a personal OneDrive access token.
+    Do NOT use in production. For production, implement OAuthAuth (placeholder below).
+    """
+
+    def __init__(self, token: Optional[str] = None):
+        self.token = token or settings.MS_ACCESS_TOKEN
+
+    def get_auth_headers(self) -> Dict[str, str]:
+        if not self.token:
+            raise RuntimeError("MS_ACCESS_TOKEN not provided for TestTokenAuth")
+        return {"Authorization": f"Bearer {self.token}"}
+
+
+class OAuthAuth:
+    """TODO: Implement OAuth client-credentials or other flows later.
+
+    Placeholder class so the rest of the code depends on the auth interface only.
+    """
+
+    def __init__(self):
+        raise NotImplementedError("OAuthAuth must be implemented using client credentials flow")
+
+
+class OneDriveClient:
+    """Thin client for OneDrive operations using Microsoft Graph.
+
+    All remote paths are resolved under `settings.ONEDRIVE_BASE_PATH` and
+    must not escape that base folder.
+    """
+
+    def __init__(self, auth: MicrosoftAuth | None = None, session: aiohttp.ClientSession | None = None):
+        self.auth = auth or TestTokenAuth()
+        self.base_url = settings.MS_GRAPH_BASE_URL.rstrip("/")
+        self.drive = settings.MS_DRIVE_ID or "me/drive"
+        self.base_path = settings.ONEDRIVE_BASE_PATH.rstrip("/") or "/TEST"
+        self._external_session = session
+
+    def _resolve_path(self, remote_path: str) -> str:
+        # Ensure remote_path is relative and stays within base_path
+        rp = remote_path.lstrip("/")
+        full = f"{self.base_path}/{rp}".replace("//", "/")
+        if not full.startswith(self.base_path):
+            raise ValueError("remote_path must be under ONEDRIVE_BASE_PATH")
+        return full
+
+    def _item_path_to_api(self, path: str) -> str:
+        # Microsoft Graph path for drive items by path: /drives/{drive}/root:/<path>
+        # If settings.MS_DRIVE_ID is of form 'me/drive', we handle it
+        drive_part = self.drive
+        if drive_part == "me/drive":
+            return f"{self.base_url}/me/drive/root:{path}"
+        # allow passing drive id or drives/{id}
+        return f"{self.base_url}/drives/{drive_part}/root:{path}"
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        if self._external_session is not None:
+            return self._external_session
+        headers = self.auth.get_auth_headers()
+        return aiohttp.ClientSession(headers={**headers, "Accept": "application/json"})
+
+    async def list_files(self, remote_path: str) -> List[Dict[str, Any]]:
+        """List children of a folder under ONEDRIVE_BASE_PATH/remote_path."""
+        path = self._resolve_path(remote_path)
+        url = self._item_path_to_api(path) + ":/children"
+        log("INFO", f"Listing files in OneDrive: {path}", module="onedrive_client")
+        session = await self._get_session()
+        try:
+            async with session.get(url) as resp:
+                text = await resp.text()
+                if resp.status >= 400:
+                    log("ERROR", f"List files failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"List files failed: {resp.status} {text}")
+                data = await resp.json()
+                items = data.get("value", [])
+                log("INFO", f"Listed {len(items)} items", module="onedrive_client")
+                return items
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    async def get_file_metadata(self, remote_path: str) -> Dict[str, Any]:
+        path = self._resolve_path(remote_path)
+        url = self._item_path_to_api(path)
+        log("INFO", f"Fetching metadata for OneDrive file: {path}", module="onedrive_client")
+        session = await self._get_session()
+        try:
+            async with session.get(url) as resp:
+                text = await resp.text()
+                if resp.status >= 400:
+                    log("ERROR", f"Get metadata failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"Get metadata failed: {resp.status} {text}")
+                data = await resp.json()
+                log("INFO", f"Metadata fetched", module="onedrive_client")
+                return data
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    async def download_file(self, remote_path: str, local_path: str) -> None:
+        path = self._resolve_path(remote_path)
+        url = self._item_path_to_api(path) + ":/content"
+        log("INFO", f"Downloading OneDrive file: {path} -> {local_path}", module="onedrive_client")
+        session = await self._get_session()
+        try:
+            async with session.get(url) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    log("ERROR", f"Download failed: {resp.status} {text}", module="onedrive_client")
+                    raise RuntimeError(f"Download failed: {resp.status} {text}")
+                # Stream to file
+                local_dir = Path(local_path).parent
+                local_dir.mkdir(parents=True, exist_ok=True)
+                with open(local_path, "wb") as fh:
+                    async for chunk in resp.content.iter_chunked(1024 * 64):
+                        fh.write(chunk)
+                log("INFO", f"Download completed: {local_path}", module="onedrive_client")
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+    async def upload_file(self, local_path: str, remote_path: str) -> Dict[str, Any]:
+        path = self._resolve_path(remote_path)
+        url = self._item_path_to_api(path) + ":/content"
+        log("INFO", f"Uploading file to OneDrive: {path} from {local_path}", module="onedrive_client")
+        if not Path(local_path).exists():
+            log("ERROR", f"Local file not found: {local_path}", module="onedrive_client")
+            raise FileNotFoundError(local_path)
+        session = await self._get_session()
+        try:
+            with open(local_path, "rb") as fh:
+                async with session.put(url, data=fh) as resp:
+                    text = await resp.text()
+                    if resp.status >= 400:
+                        log("ERROR", f"Upload failed: {resp.status} {text}", module="onedrive_client")
+                        raise RuntimeError(f"Upload failed: {resp.status} {text}")
+                    data = await resp.json()
+                    log("INFO", f"Upload completed: {path}", module="onedrive_client")
+                    return data
+        finally:
+            if self._external_session is None:
+                await session.close()
+
+
+async def main_cli():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="OneDrive client CLI (testing only)")
+    parser.add_argument("action", choices=["upload", "download", "list", "meta"])
+    parser.add_argument("remote_path")
+    parser.add_argument("local_path", nargs="?", default=None)
+    args = parser.parse_args()
+    client = OneDriveClient()
+    if args.action == "list":
+        items = await client.list_files(args.remote_path)
+        print(items)
+    elif args.action == "meta":
+        meta = await client.get_file_metadata(args.remote_path)
+        print(meta)
+    elif args.action == "download":
+        if not args.local_path:
+            raise SystemExit("download requires local_path")
+        await client.download_file(args.remote_path, args.local_path)
+    elif args.action == "upload":
+        if not args.local_path:
+            raise SystemExit("upload requires local_path")
+        res = await client.upload_file(args.local_path, args.remote_path)
+        print(res)
+
+
+if __name__ == "__main__":
+    asyncio.run(main_cli())

@@ -119,6 +119,24 @@
 - **Notification Enqueuing** to properly create database records
 - **Test Database Schema** creation/teardown for SQLite in-memory
 
+---
+
+## v1.3.1 — Monitoring Enhancements (2025-12-13)
+
+### Added
+- **Monitoring Filters**: Added `start_date`, `end_date`, and `event_type` query filters to the admin monitoring endpoints:
+  - `GET /admin/monitoring/raw_events`
+  - `GET /admin/monitoring/normalized_events`
+
+- **Audit Trail Endpoint**: Added `GET /admin/monitoring/audit_trail?idempotency_key=...` to retrieve the full audit log sequence for a specific idempotency key.
+
+### Changed
+- **OpenAPI & Postman**: Updated `openapi.json` and `postman_collection.json` with new query parameters and sample requests for filtered queries and the audit trail endpoint.
+
+### Notes
+- All SQL queries for audit retrieval use parameterized statements to avoid SQL injection. Date filters accept ISO-8601 timestamps.
+
+
 ### Testing
 - ✅ 4/4 tests passing
 - E2E test: Complete pipeline validation
