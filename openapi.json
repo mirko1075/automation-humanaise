@@ -3,7 +3,7 @@
   "info": {
     "title": "Edilcos Automation Backend",
     "version": "1.0.0",
-    "description": "OpenAPI specification for health and basic admin endpoints"
+    "description": "OpenAPI specification for health and basic admin endpoints.\n\nNote: OneDrive/SharePoint integration uses server-side OAuth2 app-only (client credentials). The server manages tokens and no client Authorization header is required.",
   },
   "servers": [
     { "url": "http://localhost:9100", "description": "Local development" },
@@ -56,6 +56,49 @@
       }
     }
     ,
+    "/admin/integrations/onedrive/logs": {
+      "get": {
+        "summary": "List OneDrive integration events",
+        "operationId": "listOneDriveIntegrationEvents",
+        "parameters": [
+          {"name": "level", "in": "query", "schema": {"type": "string"}, "description": "Filter by level (INFO|WARN|ERROR)"},
+          {"name": "event_type", "in": "query", "schema": {"type": "string"}, "description": "Filter by event_type"},
+          {"name": "since", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "ISO timestamp to filter from (inclusive)"},
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "List of integration events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string"},
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string"},
+                          "created_at": {"type": "string", "format": "date-time"},
+                          "level": {"type": "string"},
+                          "event_type": {"type": "string"},
+                          "message": {"type": "string"},
+                          "context": {"type": "object"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ,
     "/admin/monitoring/raw_events": {
       "get": {
         "summary": "List Raw Events",
@@ -96,6 +139,22 @@
           {"name": "offset", "in": "query", "schema": {"type": "integer"}}
         ],
         "responses": {"200": {"description": "List of discarded audit events"}}
+      }
+    }
+    ,
+    "/admin/monitoring/gmail_events": {
+      "get": {
+        "summary": "List Gmail events",
+        "operationId": "listGmailEvents",
+        "parameters": [
+          {"name": "processed", "in": "query", "schema": {"type": "boolean"}, "description": "Filter by processed status"},
+          {"name": "event_type", "in": "query", "schema": {"type": "string"}},
+          {"name": "start_date", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+          {"name": "end_date", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}}
+        ],
+        "responses": {"200": {"description": "List of Gmail raw events"}}
       }
     }
   }

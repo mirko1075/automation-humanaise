@@ -16,6 +16,9 @@ from app.api.admin.health import router as health_router
 from app.api.admin.errors import router as errors_router
 from app.api.ingress.gmail_webhook import router as gmail_router
 from app.api.admin.monitoring import router as monitoring_router
+from app.api.admin.integrations import router as integrations_router
+from app.config import settings
+from app.monitoring.logger import log
 
 app = FastAPI(title="Edilcos Automation Backend")
 
@@ -75,6 +78,15 @@ app.include_router(health_router)
 app.include_router(errors_router)
 app.include_router(gmail_router)
 app.include_router(monitoring_router)
+app.include_router(integrations_router)
 
 # Logging initialization
 log("INFO", "Edilcos Automation Backend started", module="main")
+
+
+# Startup-time validation for OneDrive OAuth app-only mode
+if settings.ONEDRIVE_AUTH_MODE == "app":
+    missing = [k for k in ("MS_CLIENT_ID", "MS_CLIENT_SECRET", "MS_TENANT_ID") if not getattr(settings, k, None)]
+    if missing:
+        log("CRITICAL", "OneDrive OAuth app-only mode enabled but required env vars missing", module="main", missing=missing)
+        raise RuntimeError(f"ONEDRIVE_AUTH_MODE=app requires MS_CLIENT_ID, MS_CLIENT_SECRET, MS_TENANT_ID; missing: {missing}")

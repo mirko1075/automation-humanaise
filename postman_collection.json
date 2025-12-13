@@ -2,7 +2,7 @@
   "info": {
     "name": "Edilcos Automation Backend",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Postman collection to test health endpoints and webhooks"
+    "description": "Postman collection to test health endpoints and webhooks\n\nAuthentication note: OneDrive integration uses server-side OAuth2 app-only (client credentials). No Authorization header is required from Postman - the server handles tokens. For local testing you may set ONEDRIVE_AUTH_MODE=test and provide MS_ACCESS_TOKEN in your environment."
   },
   "item": [
     {
