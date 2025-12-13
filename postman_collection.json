@@ -115,6 +115,50 @@
           ]
         },
         {
+          "name": "Monitoring",
+          "item": [
+            {
+              "name": "Filtered Raw Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/monitoring/raw_events?tenant_id=06c01461-69d9-4745-80cf-7cfff6b55ea5&start_date=2025-12-01T00:00:00Z&end_date=2025-12-31T23:59:59Z&event_type=new_quote",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "monitoring", "raw_events"]
+                },
+                "description": "Get raw events for December with event_type filter"
+              }
+            },
+            {
+              "name": "Filtered Normalized Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/monitoring/normalized_events?tenant_id=06c01461-69d9-4745-80cf-7cfff6b55ea5&event_type=new_quote&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "monitoring", "normalized_events"]
+                },
+                "description": "Get normalized events filtered by event_type"
+              }
+            },
+            {
+              "name": "Audit Trail by Idempotency",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/monitoring/audit_trail?idempotency_key=msg-preventivo-001",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "monitoring", "audit_trail"]
+                },
+                "description": "Fetch full audit trail for a given idempotency_key"
+              }
+            }
+          ]
+        },
+        {
           "name": "WhatsApp Webhook",
           "request": {
             "method": "POST",

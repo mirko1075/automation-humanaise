@@ -62,6 +62,9 @@
         "operationId": "listRawEvents",
         "parameters": [
           {"name": "tenant_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "start_date", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "ISO start date/time filter (inclusive)"},
+          {"name": "end_date", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "ISO end date/time filter (inclusive)"},
+          {"name": "event_type", "in": "query", "schema": {"type": "string"}, "description": "Filter by event_type present in payload"},
           {"name": "limit", "in": "query", "schema": {"type": "integer"}},
           {"name": "offset", "in": "query", "schema": {"type": "integer"}}
         ],
@@ -74,6 +77,9 @@
         "operationId": "listNormalizedEvents",
         "parameters": [
           {"name": "tenant_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "event_type", "in": "query", "schema": {"type": "string"}, "description": "Filter by event_type stored in normalized event"},
+          {"name": "start_date", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "ISO start date/time filter (inclusive)"},
+          {"name": "end_date", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "ISO end date/time filter (inclusive)"},
           {"name": "limit", "in": "query", "schema": {"type": "integer"}},
           {"name": "offset", "in": "query", "schema": {"type": "integer"}}
         ],
