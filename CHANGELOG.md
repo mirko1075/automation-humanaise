@@ -1,13 +1,16 @@
-## v1.3.3 — <short title> (2025-12-13)
+## v1.3.3 — Release Preparation & Tooling (2025-12-13)
 
 ### Added
-- 
+- `scripts/bump_version.py`: utility to bump the top-level `VERSION` file, prepend a changelog stub to `CHANGELOG.md`, and optionally create a local commit.
+- Top-level `VERSION` file added as single-source-of-truth for application version.
 
 ### Changed
-- 
+- `app.__init__` now exposes `__version__` by reading the top-level `VERSION` file at import time.
+- Reorganized `postman_collection.json` to add a dedicated `Admin` group for monitoring and integrations requests.
 
 ### Fixed
-- 
+- Minor formatting and consistency fixes in `CHANGELOG.md` and Postman samples.
+
 
 ## v1.3.0 — Multi-Protocol NAS Provider System (2024-12-11)
 
