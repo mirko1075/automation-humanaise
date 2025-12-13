@@ -119,18 +119,21 @@ class OneDriveClient:
         try:
             # 1) /me/drive
             try:
+                # Log start of discovery attempt for /me/drive
+                log("INFO", "OneDrive discovery: trying /me/drive", module="onedrive_client")
                 async with session.get(f"{self.base_url}/me/drive") as resp:
                     status = resp.status
-                    text = await resp.text()
-                    log("DEBUG", "drive_discovery_attempt", module="onedrive_client", attempt="me_drive", status=status)
+                    # Do not log token or response body
                     if status == 200:
                         data = await resp.json()
                         did = data.get("id")
                         if did:
                             self._drive_id_cached = did
                             self._drive_resolved = True
-                            log("INFO", "drive_discovery", module="onedrive_client", method="me_drive", drive_id=did)
+                            log("INFO", f"OneDrive discovery: using drive=drives/{did}", module="onedrive_client")
                             return
+                    elif status == 404:
+                        log("WARNING", f"OneDrive discovery: /me/drive returned 404, trying /users/{{upn}}/drive", module="onedrive_client")
             except Exception:
                 pass
 
@@ -138,26 +141,24 @@ class OneDriveClient:
             try:
                 async with session.get(f"{self.base_url}/me") as me_resp:
                     me_status = me_resp.status
-                    me_text = await me_resp.text()
-                    log("DEBUG", "drive_discovery_attempt", module="onedrive_client", attempt="me_profile", status=me_status)
                     if me_status == 200:
                         me = await me_resp.json()
                         upn = me.get("userPrincipalName")
                         if upn:
                             async with session.get(f"{self.base_url}/users/{upn}/drive") as uresp:
                                 u_status = uresp.status
-                                u_text = await uresp.text()
-                                log("DEBUG", "drive_discovery_attempt", module="onedrive_client", attempt="users_upn_drive", upn=upn, status=u_status)
                                 if u_status == 200:
                                     data = await uresp.json()
                                     did = data.get("id")
                                     if did:
                                         self._drive_id_cached = did
                                         self._drive_resolved = True
-                                        log("INFO", "drive_discovery", module="onedrive_client", method="users_upn_drive", upn=upn, drive_id=did)
+                                        log("INFO", f"OneDrive discovery: using drive=drives/{did}", module="onedrive_client")
                                         return
+                                elif u_status == 404:
+                                    log("WARNING", f"OneDrive discovery: /users/{{upn}}/drive returned 404, trying site-based discovery (hostname={settings.ONEDRIVE_HOSTNAME})", module="onedrive_client")
             except Exception as e:
-                log("WARNING", "drive_discovery_exception", module="onedrive_client", error=str(e))
+                log("WARNING", "OneDrive discovery exception", module="onedrive_client", error=str(e))
 
             # 3) site-based discovery using optional ONEDRIVE_HOSTNAME or derivation
             hostname = settings.ONEDRIVE_HOSTNAME
@@ -168,33 +169,36 @@ class OneDriveClient:
                 hostname = None
             if hostname:
                 try:
+                    log("WARNING", f"OneDrive discovery: trying site-based discovery (hostname={hostname})", module="onedrive_client")
                     async with session.get(f"{self.base_url}/sites/{hostname}") as sresp:
                         s_status = sresp.status
-                        s_text = await sresp.text()
-                        log("DEBUG", "drive_discovery_attempt", module="onedrive_client", attempt="site_lookup", hostname=hostname, status=s_status)
                         if s_status == 200:
                             site = await sresp.json()
                             site_id = site.get("id")
                             if site_id:
                                 async with session.get(f"{self.base_url}/sites/{site_id}/drive") as sd:
                                     sd_status = sd.status
-                                    sd_text = await sd.text()
-                                    log("DEBUG", "drive_discovery_attempt", module="onedrive_client", attempt="site_drive", site_id=site_id, status=sd_status)
                                     if sd_status == 200:
                                         ddata = await sd.json()
                                         did = ddata.get("id")
                                         if did:
                                             self._drive_id_cached = did
                                             self._drive_resolved = True
-                                            log("INFO", "drive_discovery", module="onedrive_client", method="site_drive", site_id=site_id, drive_id=did)
+                                            log("INFO", f"OneDrive discovery: resolved drive via site {hostname} -> drive_id={did}", module="onedrive_client")
+                                            log("INFO", f"OneDrive discovery: using drive=drives/{did}", module="onedrive_client")
                                             return
                 except Exception as e:
-                    log("WARNING", "drive_discovery_exception", module="onedrive_client", hostname=hostname, error=str(e))
+                    log("WARNING", "OneDrive discovery exception", module="onedrive_client", hostname=hostname, error=str(e))
         finally:
             if self._external_session is None:
                 await session.close()
         # mark as resolved to avoid repeated attempts
         self._drive_resolved = True
+        # If we reach here without a cached drive id, log fallback once
+        if not self._drive_id_cached:
+            # final fallback to configured MS_DRIVE_ID
+            log("WARNING", f"OneDrive discovery failed; falling back to configured MS_DRIVE_ID={settings.MS_DRIVE_ID}", module="onedrive_client")
+            log("INFO", f"OneDrive discovery: using drive={settings.MS_DRIVE_ID}", module="onedrive_client")
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._external_session is not None:
