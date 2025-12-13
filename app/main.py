@@ -18,6 +18,7 @@ from app.api.ingress.gmail_webhook import router as gmail_router
 from app.api.admin.monitoring import router as monitoring_router
 from app.api.admin.integrations import router as integrations_router
 from app.api.auth.google_oauth import router as auth_router
+from app.api.auth.google_oauth import public_router as auth_public_router
 from app.config import settings
 from app.monitoring.logger import log
 
@@ -81,6 +82,7 @@ app.include_router(gmail_router)
 app.include_router(monitoring_router)
 app.include_router(integrations_router)
 app.include_router(auth_router)
+app.include_router(auth_public_router)
 
 # Logging initialization
 log("INFO", "Edilcos Automation Backend started", module="main")
