@@ -12,151 +12,187 @@
           "name": "Shallow Health",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"]
-            }
-          },
-          "event": [
             {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Has status field', function () {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.status).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
+              "name": "Webhooks",
+              "item": [
+                {
+                  "name": "Gmail Webhook",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"message\": {\n    \"data\": \"eyJoaXN0b3J5SWQiOiAiMTIzNDU3IiwgImVtYWlsQWRkcmVzcyI6ICJ0ZXN0QGV4YW1wbGUuY29tIiwgIm1lc3NhZ2VJZCI6ICJtc2ctdGVzdC1mbG93LTAwMSJ9\",\n    \"messageId\": \"pub-sub-msg-124\",\n    \"publishTime\": \"2025-12-13T10:00:00.000Z\"\n  },\n  \"subscription\": \"projects/myproject/subscriptions/mysubscription\"\n}"
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/gmail/webhook",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["gmail", "webhook"]
+                    },
+                    "description": "Gmail Pub/Sub webhook test. The 'data' field contains base64-encoded JSON:\n```json\n{\n  \"historyId\": \"123457\",\n  \"emailAddress\": \"test@example.com\",\n  \"messageId\": \"msg-test-flow-001\"\n}\n```\nMake sure the emailAddress matches a configured tenant or external token in your database."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test('Status code is 200', function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test('Has status or error field', function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json.status || json.error).to.exist;",
+                          "});",
+                          "pm.test('Has request_id', function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json.request_id).to.exist;",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "WhatsApp Webhook",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"object\": \"whatsapp_business_account\",\n  \"entry\": [\n    {\n      \"id\": \"WHATSAPP_BUSINESS_ACCOUNT_ID\",\n      \"changes\": [\n        {\n          \"value\": {\n            \"messaging_product\": \"whatsapp\",\n            \"metadata\": {\n              \"display_phone_number\": \"+393331234567\",\n              \"phone_number_id\": \"PHONE_NUMBER_ID\"\n            },\n            \"contacts\": [\n              {\n                \"profile\": {\n                  \"name\": \"Mario Rossi\"\n                },\n                \"wa_id\": \"393331234567\"\n              }\n            ],\n            \"messages\": [\n              {\n                \"from\": \"393331234567\",\n                \"id\": \"wamid.HBgLMzkzMzMxMjM0NTY3FQIAERgSNEE2Q0Y3RjBCNTBCMDRERjY5AA==\",\n                \"timestamp\": \"1702468800\",\n                \"text\": {\n                  \"body\": \"Richiesta preventivo per ristrutturazione bagno\"\n                },\n                \"type\": \"text\"\n              }\n            ]\n          },\n          \"field\": \"messages\"\n        }\n      ]\n    }\n  ]\n}"
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/whatsapp/webhook",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["whatsapp", "webhook"]
+                    },
+                    "description": "WhatsApp Cloud API webhook test. This is the standard Meta/Facebook webhook format for incoming WhatsApp messages.\n\nNote: This endpoint needs to be implemented in `app/api/ingress/whatsapp_webhook.py`.\n\nThe phone number in the 'from' field should match a configured tenant or external token."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test('Status code is 200 or 404', function () {",
+                          "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                          "});",
+                          "pm.test('Has status or error field', function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json.status || json.error).to.exist;",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Admin",
+              "item": [
+                {
+                  "name": "Monitoring",
+                  "item": [
+                    {
+                      "name": "Filtered Raw Events",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/raw_events?tenant_id=06c01461-69d9-4745-80cf-7cfff6b55ea5&start_date=2025-12-01T00:00:00Z&end_date=2025-12-31T23:59:59Z&event_type=new_quote",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "raw_events"]
+                        },
+                        "description": "Get raw events for December with event_type filter"
+                      }
+                    },
+                    {
+                      "name": "Filtered Normalized Events",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/normalized_events?tenant_id=06c01461-69d9-4745-80cf-7cfff6b55ea5&event_type=new_quote&limit=20",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "normalized_events"]
+                        },
+                        "description": "Get normalized events filtered by event_type"
+                      }
+                    },
+                    {
+                      "name": "Audit Trail by Idempotency",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/audit_trail?idempotency_key=msg-preventivo-001",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "audit_trail"]
+                        },
+                        "description": "Fetch full audit trail for a given idempotency_key"
+                      }
+                    },
+                    {
+                      "name": "Gmail Events",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/gmail_events?processed=true&limit=50",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "gmail_events"]
+                        },
+                        "description": "Fetch processed Gmail events (accepted). Use processed=false for discarded."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Integrations",
+                  "item": [
+                    {
+                      "name": "OneDrive Discovery Logs",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/integrations/onedrive/logs?level=WARN&limit=20",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "integrations", "onedrive", "logs"]
+                        },
+                        "description": "Fetch recent OneDrive discovery logs (admin-only). Replace query params as needed."
+                      }
+                    }
+                  ]
+                }
+              ]
             }
-          ]
+          }
         },
         {
-          "name": "Deep Health",
+          "name": "Gmail Events",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/health/deep",
+              "raw": "{{baseUrl}}/admin/monitoring/gmail_events?processed=true&limit=50",
               "host": ["{{baseUrl}}"],
-              "path": ["health", "deep"]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Has status field', function () {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.status).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Webhooks",
-      "item": [
-        {
-          "name": "Gmail Webhook",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": {\n    \"data\": \"eyJoaXN0b3J5SWQiOiAiMTIzNDU3IiwgImVtYWlsQWRkcmVzcyI6ICJ0ZXN0QGV4YW1wbGUuY29tIiwgIm1lc3NhZ2VJZCI6ICJtc2ctdGVzdC1mbG93LTAwMSJ9\",\n    \"messageId\": \"pub-sub-msg-124\",\n    \"publishTime\": \"2025-12-13T10:00:00.000Z\"\n  },\n  \"subscription\": \"projects/myproject/subscriptions/mysubscription\"\n}"
+              "path": ["admin", "monitoring", "gmail_events"]
             },
-            "url": {
-              "raw": "{{baseUrl}}/gmail/webhook",
-              "host": ["{{baseUrl}}"],
-              "path": ["gmail", "webhook"]
-            },
-            "description": "Gmail Pub/Sub webhook test. The 'data' field contains base64-encoded JSON:\n```json\n{\n  \"historyId\": \"123457\",\n  \"emailAddress\": \"test@example.com\",\n  \"messageId\": \"msg-test-flow-001\"\n}\n```\nMake sure the emailAddress matches a configured tenant or external token in your database."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status code is 200 or 404', function () {",
-                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
-                  "});",
-                  "pm.test('Has status or error field', function () {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.status || json.error).to.exist;",
-                  "});",
-                  "pm.test('Has request_id', function () {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.request_id).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Monitoring",
-          "item": [
-            {
-              "name": "Filtered Raw Events",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/admin/monitoring/raw_events?tenant_id=06c01461-69d9-4745-80cf-7cfff6b55ea5&start_date=2025-12-01T00:00:00Z&end_date=2025-12-31T23:59:59Z&event_type=new_quote",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["admin", "monitoring", "raw_events"]
-                },
-                "description": "Get raw events for December with event_type filter"
-              }
-            },
-            {
-              "name": "Filtered Normalized Events",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/admin/monitoring/normalized_events?tenant_id=06c01461-69d9-4745-80cf-7cfff6b55ea5&event_type=new_quote&limit=20",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["admin", "monitoring", "normalized_events"]
-                },
-                "description": "Get normalized events filtered by event_type"
-              }
-            },
-            {
-              "name": "Audit Trail by Idempotency",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/admin/monitoring/audit_trail?idempotency_key=msg-preventivo-001",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["admin", "monitoring", "audit_trail"]
-                },
-                "description": "Fetch full audit trail for a given idempotency_key"
-              }
-            }
-          ]
+            "description": "Fetch processed Gmail events (accepted). Use processed=false for discarded."
+          }
         },
         {
           "name": "WhatsApp Webhook",

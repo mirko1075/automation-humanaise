@@ -151,6 +151,32 @@
 
 ---
 
+## v1.3.2 — OneDrive Discovery & Admin Monitoring (2025-12-13)
+
+### Added
+- **OneDrive discovery improvements**: Personal-site discovery fallback added to `app/integrations/onedrive_client.py` to handle SharePoint-backed personal OneDrive sites. Includes `/sites/{hostname}:/personal/{user_segment}:/drive` attempt and `/drives` scanning fallback. Logs every discovery decision to `integration_events`.
+- **Integration events persistence**: New `IntegrationEvent` model and repository and corresponding SQL migration (`migrations/003_add_integration_events.sql`).
+- **Admin endpoints**: Read-only admin APIs to inspect monitoring and integration logs:
+  - `GET /admin/integrations/onedrive/logs` — list OneDrive discovery/integration events (filters: `level`, `event_type`, `since`, pagination).
+  - `GET /admin/monitoring/gmail_events` — list Gmail raw events filtered by `processed` and `event_type`.
+  - Existing monitoring endpoints extended: `raw_events`, `normalized_events`, `audit_trail` now support additional filters (`start_date`, `end_date`, `event_type`).
+- **Operational scripts**: Added `scripts/create_integration_events.py` (idempotent table creation) and `scripts/apply_migrations.py` (async-aware migration helper) to help apply DB changes in dev environments.
+- **Documentation**: Added operational docs under `docs/` including `ONEDRIVE.md`, `GMAIL.md`, `WHATSAPP.md`, `SLACK.md`, and the master `docs/README.md`. Also added `docs/GMAIL_EVENTS.md` and `docs/ONE_DRIVE_DISCOVERY_LOGS.md` for quick operator references.
+
+### Changed
+- **Postman & OpenAPI**: Updated Postman collection to include admin monitoring and integrations endpoints. OpenAPI updated to reflect new query parameters and admin routes.
+- **Monitoring**: Improved logging and error handling in admin monitoring endpoints; fixed an import/indentation bug in `app/api/admin/monitoring.py` that prevented the service from starting.
+
+### Fixed
+- Resolved startup error caused by a duplicated/malformed `monitoring.py` module.
+- Ensured `integration_events` table exists in developer DB via `scripts/create_integration_events.py` (safe, idempotent).
+
+### Notes
+- For production deployments, prefer to integrate these schema changes into a managed Alembic migration rather than running ad-hoc SQL scripts.
+
+
+---
+
 ## v1.1.0 — HealthCheckSuite + TenantRegistry Implemented
 - Added /health and /health/deep endpoints for system diagnostics.
 - Deep health check covers DB, Gmail, OneDrive, WhatsApp, Scheduler.
