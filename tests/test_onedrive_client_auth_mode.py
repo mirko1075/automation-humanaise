@@ -17,4 +17,4 @@ def test_client_uses_oauth_when_configured(monkeypatch):
     monkeypatch.setattr(settings, "MS_TENANT_ID", "tid")
     client = OneDriveClient()
     assert isinstance(client.auth, OAuthAuth)
-*** End Patch
+ 

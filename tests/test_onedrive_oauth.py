@@ -9,11 +9,19 @@ async def test_oauth_token_acquisition(monkeypatch):
     fake_resp = AsyncMock()
     fake_resp.status = 200
     fake_resp.json = AsyncMock(return_value={"access_token": "abc123", "expires_in": 3600})
+    class FakeCtx:
+        def __init__(self, resp):
+            self._resp = resp
+        async def __aenter__(self):
+            return self._resp
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
     class FakeSession:
         def __init__(self):
             pass
-        async def post(self, url, data=None):
-            return fake_resp
+        def post(self, url, data=None):
+            return FakeCtx(fake_resp)
         async def close(self):
             return None
 
@@ -33,14 +41,22 @@ async def test_oauth_refresh(monkeypatch):
     fake_resp2.status = 200
     fake_resp2.json = AsyncMock(return_value={"access_token": "token2", "expires_in": 3600})
 
+    class FakeCtx:
+        def __init__(self, resp):
+            self._resp = resp
+        async def __aenter__(self):
+            return self._resp
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
     class FakeSession:
         def __init__(self):
             self._i = 0
-        async def post(self, url, data=None):
+        def post(self, url, data=None):
             self._i += 1
             if self._i == 1:
-                return fake_resp1
-            return fake_resp2
+                return FakeCtx(fake_resp1)
+            return FakeCtx(fake_resp2)
         async def close(self):
             return None
 
@@ -51,4 +67,3 @@ async def test_oauth_refresh(monkeypatch):
     await asyncio.sleep(1.1)
     h2 = await oauth.get_auth_headers()
     assert "token2" in h2["Authorization"]
-*** End Patch
