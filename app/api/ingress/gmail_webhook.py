@@ -1,6 +1,17 @@
 # app/api/ingress/gmail_webhook.py
 """
 Gmail Pub/Sub webhook endpoint for Edilcos Automation Backend.
+
+ARCHITECTURAL NOTE (important):
+ - This webhook strictly acts as an ingest-only endpoint.
+ - It MUST NOT call Gmail APIs or attempt to fetch message bodies.
+ - It decodes the Pub/Sub `message.data` (base64), extracts `historyId` and
+     `emailAddress`, persists a `RawEvent` referencing these values, and
+     returns HTTP 200 immediately to ACK the Pub/Sub push.
+ - All Gmail API interactions (e.g. `users.history.list`, message fetches)
+     are performed later by the normalizer/worker pipeline.
+
+Rationale: fast ACK, resilience, and correct retry semantics.
 """
 from fastapi import APIRouter, Request, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
@@ -68,19 +79,62 @@ async def get_tenant_id(email_address: str, db):
 @router.post("/webhook")
 async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
     request_id = getattr(request.state, "request_id", None)
+    log("INFO", "GMAIL WEBHOOK HIT", raw_body=request.body)
+
     try:
         body = await request.json()
-        envelope = body.get("message", {})
+        # Expect Pub/Sub push envelope as documented by Google
+        # {
+        #   "message": { "data": "<BASE64>", "attributes": {...}, "messageId": "...", "publishTime": "..." },
+        #   "subscription": "..."
+        # }
+        envelope = body.get("message") if isinstance(body, dict) else None
+        if not envelope:
+            log("WARNING", "Invalid Pub/Sub envelope: missing 'message'", module="gmail_webhook", request_id=request_id)
+            return JSONResponse(status_code=400, content={"error": "Invalid envelope", "request_id": request_id})
         data_b64 = envelope.get("data")
         if not data_b64:
             log("WARNING", "Missing data in Pub/Sub envelope", module="gmail_webhook", request_id=request_id)
             return JSONResponse(status_code=400, content={"error": "Missing data", "request_id": request_id})
         decoded = base64.urlsafe_b64decode(data_b64 + "==")
-        payload = json.loads(decoded)
+        payload = None
+        # Try to parse JSON from the decoded bytes using multiple fallbacks
+        try:
+            payload = json.loads(decoded)
+        except Exception:
+            try:
+                # Decode as UTF-8, replacing invalid chars, then parse
+                text = decoded.decode("utf-8", errors="replace")
+                payload = json.loads(text)
+            except Exception:
+                try:
+                    # Try latin-1 as a fallback
+                    text = decoded.decode("latin-1", errors="replace")
+                    payload = json.loads(text)
+                except Exception:
+                    try:
+                        # Attempt to extract a JSON object substring between braces
+                        text = decoded.decode("utf-8", errors="ignore")
+                        start = text.find("{")
+                        end = text.rfind("}")
+                        if start != -1 and end != -1 and end > start:
+                            payload = json.loads(text[start:end+1])
+                        else:
+                            raise ValueError("no-json-substring")
+                    except Exception:
+                        # Last resort: keep raw base64 payload so we don't lose the event
+                        payload = {"_raw_base64": data_b64}
+                        try:
+                            log("WARNING", "Gmail webhook payload could not be JSON-decoded; stored raw base64", module="gmail_webhook", request_id=request_id)
+                        except Exception:
+                            pass
+        # Gmail Pub/Sub payload contains a reference, not full message content
         history_id = payload.get("historyId")
         email_address = payload.get("emailAddress")
-        message_id = payload.get("messageId")
-        missing_fields = [f for f in ["historyId", "emailAddress", "messageId"] if not payload.get(f)]
+        # messageId may not be present in the Pub/Sub payload; Gmail delivers historyId
+        message_id = payload.get("messageId") or envelope.get("messageId") or envelope.get("attributes", {}).get("messageId")
+        # Only historyId and emailAddress are required for the pipeline
+        missing_fields = [f for f in ["historyId", "emailAddress"] if not payload.get(f)]
         if missing_fields:
             log("WARNING", f"Missing fields: {missing_fields}", module="gmail_webhook", request_id=request_id)
         import sys
@@ -168,34 +222,23 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
                     return False
 
             loop = _asyncio.get_running_loop()
-            is_dup = await loop.run_in_executor(None, _sync_idempotency_check, tenant_id, message_id)
+            # Use historyId as fallback idempotency key if message_id is missing
+            idempotency_key = message_id or history_id
+            is_dup = await loop.run_in_executor(None, _sync_idempotency_check, tenant_id, idempotency_key)
             if is_dup:
-                log("INFO", f"Duplicate message_id {message_id}", module="gmail_webhook", request_id=request_id)
+                log("INFO", f"Duplicate event for idempotency_key {idempotency_key}", module="gmail_webhook", request_id=request_id)
                 return JSONResponse(content={"status": "received", "request_id": request_id})
-            
-            # TODO: ENABLE GMAIL API WHEN TESTING WITH REAL GMAIL
-            # TODO: Get access_token for Gmail API (from ExternalToken or config)
-            # access_token = "..."  # Replace with real token retrieval
-            # gmail_data = await gmail_api.fetch_message(message_id, access_token)
-            
-            # TEMPORARY: Skip Gmail API call for Postman testing
-            gmail_data = {
-                "subject": "Richiesta preventivo per ristrutturazione",
-                "sender": email_address,
-                "text_plain": "Buongiorno, vorrei un preventivo per ristrutturazione bagno. Sono Mario Rossi, email mario.rossi@example.com, tel 333-1234567",
-                "text_html": "<p>Buongiorno, vorrei un preventivo per ristrutturazione bagno. Sono Mario Rossi, email mario.rossi@example.com, tel 333-1234567</p>",
-                "attachments": []
-            }
-            
-            # Merge gmail_data into payload for storage
-            enriched_payload = {**payload, **gmail_data}
+
+            # Do NOT call Gmail APIs here. Persist the reference (historyId/email)
+            # so the normalizer/worker pipeline can perform history.list and fetch messages.
+            enriched_payload = {**payload, "note": "referenced_event_only"}
             
             raw_event = await raw_event_repo.create(
                 tenant_id=tenant_id,
                 flow_id=None,
                 source="gmail",
                 payload=enriched_payload,
-                idempotency_key=message_id
+                idempotency_key=idempotency_key
             )
             await db.commit()
             await db.refresh(raw_event)
@@ -245,7 +288,7 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
                     loop.run_in_executor(None, _sync_audit_write, "gmail_ingress", tenant_id, payload)
             except Exception as e:
                 log("WARNING", f"Could not schedule audit_event: {e}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
-            log("INFO", f"RawEvent saved for message_id {message_id}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
+            log("INFO", f"RawEvent saved for idempotency_key {idempotency_key}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
             # Pipeline handoff: schedule normalizer in background
             log("INFO", f"Handing off to EventNormalizer for raw_event_id {raw_event.id}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
             # Decide whether to run normalizer/audit inline (tests) or as

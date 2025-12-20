@@ -1,4 +1,16 @@
 # Changelog
+## v1.3.7 — Gmail webhook: ingest-only behavior (2025-12-20)
+
+### Changed
+
+- Gmail webhook now acts as ingest-only: it strictly parses the Pub/Sub push envelope, base64-decodes `message.data` and extracts `historyId` and `emailAddress`. It persists a `RawEvent` with these references and returns HTTP 200 immediately. The webhook does NOT call Gmail APIs or fetch message contents — all Gmail API interactions are performed later in the normalizer/worker pipeline. Rationale: fast ACK, resilience, and correct retry semantics.
+
+## v1.3.6 — Preventivi: OneDrive/Excel sync integration (2025-12-20)
+
+### Added
+
+- Integrated the async OneDrive/Excel sync helper into the Preventivi flow: after customer/quote resolution, the system now upserts data to commesse.xlsx and ensures the OneDrive folder tree for each quote/customer, with idempotency and audit. Only triggered for new/existing quotes.
+
 ## v1.3.5 — Preventivi OneDrive Excel integration (2025-12-20)
 
 ### Added
