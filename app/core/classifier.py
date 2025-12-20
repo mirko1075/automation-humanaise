@@ -14,6 +14,8 @@ This module contains no side effects and performs read-only DB checks via
 the repository accessor `_get_preventivo_repo(db)` which returns an object
 implementing `has_open_preventivo(tenant_id, email) -> bool` (async).
 """
+# TODO(observability): emit classifier decision details to structured logs
+# TODO(perf): cache tenant-specific rules to avoid DB lookup on each classification
 from typing import Optional, Dict
 from uuid import UUID
 

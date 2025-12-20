@@ -43,6 +43,9 @@ ARCHITECTURAL NOTE (important):
 
 Rationale: fast ACK, resilience, and correct retry semantics.
 """
+# TODO(monitoring): expose counter for raw_events_received_total{tenant,flow,outcome}
+# TODO(alerting): alert if RawEvent persistence fails repeatedly for a tenant
+# TODO(replay): store raw payload to durable object storage if persistence permanently fails
 from fastapi import APIRouter, Request, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from app.monitoring.logger import log

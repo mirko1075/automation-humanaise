@@ -109,3 +109,7 @@ async def process_daily_health_report():
     # Placeholder for daily health report job
     log("INFO", "Daily health report job executed.", module="jobs")
     await audit_event("daily_health_report", None, None, {"timestamp": datetime.now(timezone.utc).isoformat()})
+
+
+# TODO(ops): policy for exponential backoff + max attempts before moving to DEAD_LETTER
+# TODO(replay): job to retry DEAD_LETTER events after manual review

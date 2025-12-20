@@ -314,7 +314,7 @@ async def test_new_quote_flow_e2e(mocker, db_session, test_tenant, client):
         # DEBUG: print customers for troubleshooting
         print('DEBUG: customers ->', [(str(c.id), c.name, c.phone, c.email) for c in customers])
         assert any(
-            digits_only(c.phone) == "3331234567"
+            digits_only(getattr(c, "phone", "") or "") == "3331234567"
             and "Luca" in (getattr(c, "name", "") or getattr(c, "first_name", ""))
             for c in customers
         ), "Customer non trovato o con dati errati"

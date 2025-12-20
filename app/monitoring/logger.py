@@ -30,6 +30,9 @@ handler = logging.StreamHandler()
 handler.setFormatter(JsonFormatter())
 logger.handlers = [handler]
 
+# Keys reserved by LogRecord that must not be passed in `extra`
+_LOGRECORD_RESERVED = set(vars(logging.LogRecord("n", 0, "", 0, "", (), None)).keys())
+
 # Helper to log with context
 def log(level: str, message: str, component: str = None, request_id: str = None, tenant_id: str = None, flow_id: str = None, **kwargs):
     # Map legacy 'module' kwarg to 'component' to avoid LogRecord collision
@@ -49,6 +52,10 @@ def log(level: str, message: str, component: str = None, request_id: str = None,
         "tenant_id": tenant_id,
         "flow_id": flow_id,
         "component": component,
-        **kwargs
+        **{k: v for k, v in kwargs.items() if k not in _LOGRECORD_RESERVED}
     }
     logger.log(getattr(logging, level.upper(), logging.INFO), message, extra=extra)
+
+# TODO(monitoring): expose metric raw_event_processing_latency_seconds histogram
+# TODO(monitoring): expose gauge in_flight_normalizations
+# TODO(alerting): alert on error rate spikes for normalizer/dispatcher
