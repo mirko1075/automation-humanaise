@@ -1,4 +1,21 @@
 # Changelog
+## v1.4.0 — Deterministic Preventivi Normalizer (2025-12-20)
+
+### Added
+
+- Deterministic, rule-based Preventivi classifier (V1). Classifier implements explicit rules to mark incoming emails as `ignored`, `new_quote`, `follow_up`, or `unassigned`. This enables reliable, testable routing without LLM dependencies.
+- DB-only Preventivi dispatcher (V1) that performs idempotent customer upsert, quote creation, and mail-log insertion. Uses `ReceivedEmail.external_ref` for idempotency and does not perform external side effects.
+- Unit tests for the classifier and dispatcher, improving coverage for core flow routing logic.
+
+### Fixed
+
+- Gmail webhook robustness: fixed async DB session misuse and generator misuse in the FastAPI webhook. Added a safe synchronous write path to avoid asyncpg concurrent-operation errors during ingestion; webhook persists `RawEvent` rows idempotently and resolves tenants by `contact_channels.email` when available.
+- Test harness stabilization: adjusted `tests/conftest.py` to avoid cross-event-loop futures and ensure deterministic cleanup between tests.
+
+### Changed
+
+- Bumped package version to `1.4.0`.
+
 ## v1.3.7 — Gmail webhook: ingest-only behavior (2025-12-20)
 
 ### Changed
