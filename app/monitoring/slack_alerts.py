@@ -9,6 +9,9 @@ from typing import Optional, Dict
 import os
 
 async def send_slack_alert(message: str, context: Optional[Dict] = None, severity: str = "ERROR", module: str = None, request_id: str = None):
+    if not getattr(settings, "SLACK_ENABLED", False):
+        # Slack integration disabled by configuration; no-op
+        return
     webhook_url = settings.SLACK_WEBHOOK_URL
     if not webhook_url:
         log("WARNING", "Slack webhook URL not configured", module=module, request_id=request_id)

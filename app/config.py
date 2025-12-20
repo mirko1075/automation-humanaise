@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     ONEDRIVE_DRIVE_ID: Optional[str] = None
     ONEDRIVE_EXCEL_FILE_ID: Optional[str] = None
     SLACK_WEBHOOK_URL: Optional[str] = None
+    SLACK_ENABLED: bool = False
     # Microsoft Graph / OneDrive configuration
     ONEDRIVE_BASE_PATH: str = "/EDILCOS/TEST"
     MS_GRAPH_BASE_URL: str = "https://graph.microsoft.com/v1.0"

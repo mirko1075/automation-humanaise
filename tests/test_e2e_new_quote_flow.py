@@ -91,12 +91,53 @@ async def test_tenant(db_session):
         setattr(t, "_external_email", unique_email)
         return t
 
-    # run the sync insert function on the async engine so other
-    # async connections see the inserted rows immediately.
-    async with engine.begin() as conn:
-        tenant = await conn.run_sync(_insert_sync)
+    # Create a temporary synchronous engine derived from the async URL
+    # so we can perform plain sync inserts without triggering
+    # asyncpg/greenlet interop issues.
+    from app.config import settings
+    from sqlalchemy import create_engine as _create_engine
+    from sqlalchemy.orm import Session as SyncSession
 
-    return tenant
+    sync_url = str(settings.DATABASE_URL or "sqlite:///./.test_sync_tmp.db")
+    # Remove async driver markers if present
+    sync_url = sync_url.replace("+asyncpg", "")
+    sync_url = sync_url.replace("+aiosqlite", "")
+
+    tmp_engine = _create_engine(sync_url)
+    try:
+        with tmp_engine.connect() as conn:
+            trans = conn.begin()
+            try:
+                s = SyncSession(bind=conn)
+                t = Tenant(
+                    id=uuid4(),
+                    name="Edilcos Test",
+                    status="active",
+                    active_flows=["preventivi_v1"],
+                )
+                s.add(t)
+                s.flush()
+                from app.db.models import ExternalToken as ET
+                from uuid import uuid4 as _u4
+                unique_email = f"preventivi+{_u4()}@example.com"
+                m = ET(
+                    id=uuid4(),
+                    tenant_id=t.id,
+                    provider="gmail",
+                    external_id=unique_email,
+                    data={}
+                )
+                s.add(m)
+                s.commit()
+                s.refresh(t)
+                setattr(t, "_external_email", unique_email)
+                trans.commit()
+                return t
+            except Exception:
+                trans.rollback()
+                raise
+    finally:
+        tmp_engine.dispose()
 
 
 @pytest_asyncio.fixture

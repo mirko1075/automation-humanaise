@@ -10,7 +10,7 @@ def test_google_login_redirect(monkeypatch):
     monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://example.com/auth/google/callback")
 
     client = TestClient(app)
-    resp = client.get("/auth/google/login?tenant_id=test-tenant", allow_redirects=False)
+    resp = client.get("/auth/google/login?tenant_id=test-tenant", follow_redirects=False)
     assert resp.status_code == 307 or resp.status_code == 302
     assert "accounts.google.com" in resp.headers["location"]
     assert "scope=" in resp.headers["location"]

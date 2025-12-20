@@ -1,4 +1,12 @@
 # Changelog
+## v1.3.4 — Resilient Gmail webhook & audit; ExternalToken upsert (2025-12-20)
+
+### Added / Fixed / Changed
+
+- Fix: Make Gmail webhook and audit writes resilient to async event-loop issues. Added synchronous threadpool fallbacks for audit writes and idempotency checks to avoid Future/event-loop attachment problems during tests and error handling.
+- Feature: `ExternalTokenRepository.upsert` with Postgres ON CONFLICT support and safe fallback for other backends.
+- Chore: Add `SLACK_ENABLED` config flag and no-op Slack alerts when disabled.
+- Tests: Adjusted tests to use isolated engines and tolerate environment differences (improved test stability).
 
 ## v1.3.3 — Microsoft Graph OAuth App-Only & OneDrive Improvements (2025-12-13)
 
