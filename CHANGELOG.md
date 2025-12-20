@@ -1,4 +1,14 @@
 # Changelog
+## v1.4.3 — Hotfix & Features (2025-12-20)
+
+### Added
+
+- `app/integrations/onedrive/excel_writer.py` (ExcelWriter v1): file-based `commesse.xlsx` upsert for the `Preventivi` sheet. Uses download->edit->upload flow; includes soft-concurrency checks and audit logging.
+
+### Fixed
+
+- Import-time and runtime monitoring fixes discovered during local testing: timezone handling in monitoring queries and robust summary/alert generation.
+
 ## v1.4.2 — Release: tests & docs (2025-12-20)
 
 ### Added
