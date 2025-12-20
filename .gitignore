@@ -11,3 +11,4 @@ instance/.test_all.db
 client_secret_*.json
 .test_sqlite.db
 .test_integration_sqlite.db
+google_oauth.json
