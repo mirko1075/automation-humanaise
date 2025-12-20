@@ -1,4 +1,12 @@
 # Changelog
+## v1.3.5 — Preventivi OneDrive Excel integration (2025-12-20)
+
+### Added
+
+- Feature: Async helper to upsert quote, customer, and mail log in commesse.xlsx (OneDrive, sheets Clienti/Preventivi/Mail ricevute) for the Preventivi flow, with idempotency and audit.
+- Feature: Automatic creation of OneDrive folder tree for each customer/quote, including Allegati folder, on new/existing quote.
+- All operations are idempotent and logged/audited.
+
 ## v1.3.4 — Resilient Gmail webhook & audit; ExternalToken upsert (2025-12-20)
 
 ### Added / Fixed / Changed

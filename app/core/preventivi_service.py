@@ -17,6 +17,82 @@ from app.integrations.whatsapp_api import WhatsAppMessenger
 from app.file_access.registry import get_file_provider
 import traceback
 
+# OneDrive/Excel integration
+from app.integrations.onedrive_client import OneDriveClient
+from app.config import settings
+import aiohttp
+from datetime import datetime, timedelta
+
+
+async def upsert_preventivo_onedrive_excel(
+    tenant_id: str,
+    quote_id: str,
+    customer_id: str,
+    quote_data: dict,
+    customer_data: dict,
+    mail_row: dict,
+    request_id: str = None,
+    flow_id: str = None,
+) -> None:
+    """
+    Idempotently upsert quote and customer in commesse.xlsx (OneDrive), ensure folder tree, append mail log.
+    - Sheet 'Clienti': upsert by customer_id
+    - Sheet 'Preventivi': upsert by quote_id
+    - Sheet 'Mail ricevute': always append (idempotent on Id)
+    - Ensure /Preventivi/DB/commesse.xlsx exists
+    - Ensure /Preventivi/Clienti/<CustomerId or Name>/<QuoteId or Protocol>/Allegati exists
+    """
+    log("INFO", "Upsert preventivo on OneDrive: start", module="preventivi_service", tenant_id=tenant_id, flow_id=flow_id, request_id=request_id, quote_id=quote_id)
+    await audit_event("onedrive_preventivo_upsert_start", tenant_id, flow_id, {"quote_id": quote_id, "customer_id": customer_id}, request_id=request_id)
+    try:
+        # Setup OneDrive client
+        async with aiohttp.ClientSession() as session:
+            client = OneDriveClient(session=session)
+            drive_id = settings.ONEDRIVE_DRIVE_ID
+            base_path = "/Preventivi/DB/commesse.xlsx"
+            # 1. Ensure commesse.xlsx exists (raise if not found)
+            file_meta = await client.get_file_metadata(drive_id, base_path)
+            # 2. Upsert Cliente
+            await client.upsert_excel_row(
+                drive_id=drive_id,
+                file_path=base_path,
+                sheet_name="Clienti",
+                key_column="customer_id",
+                key_value=customer_id,
+                row_data=customer_data,
+            )
+            # 3. Upsert Preventivo
+            await client.upsert_excel_row(
+                drive_id=drive_id,
+                file_path=base_path,
+                sheet_name="Preventivi",
+                key_column="quote_id",
+                key_value=quote_id,
+                row_data=quote_data,
+            )
+            # 4. Append Mail ricevute (idempotent: skip if Id already present)
+            await client.append_excel_row_if_not_exists(
+                drive_id=drive_id,
+                file_path=base_path,
+                sheet_name="Mail ricevute",
+                key_column="Id",
+                key_value=mail_row["Id"],
+                row_data=mail_row,
+            )
+            # 5. Ensure folder tree exists
+            customer_folder = f"/Preventivi/Clienti/{customer_id or customer_data.get('Nome') or customer_data.get('name') or 'Unknown'}"
+            quote_folder = f"{customer_folder}/{quote_id or quote_data.get('Protocollo') or 'Unknown'}"
+            allegati_folder = f"{quote_folder}/Allegati"
+            # Create folders if missing (idempotent)
+            await client.ensure_folder_path(drive_id, customer_folder)
+            await client.ensure_folder_path(drive_id, quote_folder)
+            await client.ensure_folder_path(drive_id, allegati_folder)
+        log("INFO", "Upsert preventivo on OneDrive: success", module="preventivi_service", tenant_id=tenant_id, flow_id=flow_id, request_id=request_id, quote_id=quote_id)
+        await audit_event("onedrive_preventivo_upsert_success", tenant_id, flow_id, {"quote_id": quote_id, "customer_id": customer_id}, request_id=request_id)
+    except Exception as exc:
+        log("ERROR", f"Upsert preventivo on OneDrive failed: {exc}", module="preventivi_service", tenant_id=tenant_id, flow_id=flow_id, request_id=request_id, quote_id=quote_id)
+        await audit_event("onedrive_preventivo_upsert_error", tenant_id, flow_id, {"quote_id": quote_id, "customer_id": customer_id, "error": str(exc)}, request_id=request_id)
+
 async def process_normalized_event(event: NormalizedEvent) -> None:
     """
     Process a normalized event and transform it into a structured quote.
