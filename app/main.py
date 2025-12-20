@@ -85,24 +85,6 @@ app.include_router(integrations_router)
 app.include_router(auth_router)
 app.include_router(auth_public_router)
 
-
-# Backwards-compatible aliases: expose /health and /health/deep at root
-from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.session import get_async_session
-
-
-@app.get("/health")
-async def health_root():
-    """Alias for admin health endpoint at /health"""
-    return await admin_health()
-
-
-@app.get("/health/deep")
-async def health_deep_root(db: AsyncSession = Depends(get_async_session)):
-    """Alias for admin deep health endpoint at /health/deep"""
-    return await admin_health_deep(db=db)
-
 # Logging initialization
 log("INFO", "Edilcos Automation Backend started", module="main")
 

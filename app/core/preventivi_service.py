@@ -135,6 +135,34 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
             elif classification == "existing_quote":
                 quote = await find_and_update_quote(quote_repo, tenant_id, customer, event, extracted)
                 await audit_event("quote_updated", tenant_id, flow_id, {"quote_id": str(quote.id)}, request_id=request_id)
+
+            # --- OneDrive/Excel sync integration ---
+            if classification in ("new_quote", "existing_quote") and quote and customer:
+                from app.core.preventivi_service import upsert_preventivo_onedrive_excel
+                try:
+                    await upsert_preventivo_onedrive_excel(
+                        tenant_id=tenant_id,
+                        quote_id=str(quote.id),
+                        customer_id=str(customer.id),
+                        quote_data=quote.quote_data if hasattr(quote, "quote_data") else {},
+                        customer_data={
+                            "Nome": customer.name,
+                            "Mail": customer.email,
+                            "Telefono": customer.phone,
+                            "customer_id": str(customer.id),
+                        },
+                        mail_row={
+                            "Id": getattr(event, "message_id", getattr(event, "id", "")),
+                            "Data ricezione": getattr(event, "timestamp", datetime.utcnow().isoformat()),
+                            "Tag": classification,
+                            "Processata": True,
+                        },
+                        request_id=request_id,
+                        flow_id=flow_id,
+                    )
+                except Exception as exc:
+                    log("ERROR", f"OneDrive/Excel sync failed: {exc}", module="preventivi_service", tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
+                    await audit_event("onedrive_excel_sync_error", tenant_id, flow_id, {"quote_id": str(quote.id), "error": str(exc)}, request_id=request_id)
             
             # Skip notifications/excel if quote not created
             if not quote:
