@@ -1,6 +1,6 @@
 # Edilcos Automation Backend
 
-**Version:** 1.2.0  
+**Version:** 1.4.0  
 **Status:** ✅ Production Ready - All Tests Passing  
 **Architecture:** Multi-tenant, Event-driven, Async FastAPI
 
