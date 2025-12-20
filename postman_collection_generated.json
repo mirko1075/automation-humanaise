@@ -1,0 +1,73 @@
+{
+  "info": {
+    "name": "Edilcos Automation Backend - Generated",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Generated minimal Postman collection for Edilcos Automation Backend. Use {{baseUrl}} as environment variable."
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        { "name": "Shallow Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
+        { "name": "Deep Health", "request": { "method": "GET", "url": "{{baseUrl}}/health/deep" } }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        { "name": "Admin Ready", "request": { "method": "GET", "url": "{{baseUrl}}/admin/ready" } },
+        { "name": "OneDrive Health", "request": { "method": "GET", "url": "{{baseUrl}}/admin/health/onedrive" } },
+        { "name": "Filtered Raw Events", "request": { "method": "GET", "url": "{{baseUrl}}/admin/monitoring/raw_events?tenant_id=YOUR_TENANT_ID" } },
+        { "name": "Filtered Normalized Events", "request": { "method": "GET", "url": "{{baseUrl}}/admin/monitoring/normalized_events?tenant_id=YOUR_TENANT_ID" } },
+        { "name": "Gmail Events", "request": { "method": "GET", "url": "{{baseUrl}}/admin/monitoring/gmail_events?processed=true" } }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        { "name": "Google Login", "request": { "method": "GET", "url": "{{baseUrl}}/auth/google/login?tenant_id=demo" } },
+        { "name": "Google Callback (dev)", "request": { "method": "GET", "url": "{{baseUrl}}/auth/google/callback?code=sample_code" } }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Gmail Webhook",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": {\n    \"data\": \"eyJoaXN0b3J5SWQiOiAiMTIzNDU3IiwgImVtYWlsQWRkcmVzcyI6ICJ0ZXN0QGV4YW1wbGUuY29tIiwgIm1lc3NhZ2VJZCI6ICJtc2ctdGVzdC1mbG93LTAwMSJ9\",\n    \"messageId\": \"pub-sub-msg-124\",\n    \"publishTime\": \"2025-12-13T10:00:00.000Z\"\n  },\n  \"subscription\": \"projects/myproject/subscriptions/mysubscription\"\n}"
+            },
+            "url": "{{baseUrl}}/gmail/webhook"
+          }
+        },
+        {
+          "name": "WhatsApp Webhook",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"object\": \"whatsapp_business_account\", \"entry\": [] }" },
+            "url": "{{baseUrl}}/whatsapp/webhook"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Flows",
+      "item": [
+        {
+          "name": "Trigger Preventivi Process",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"event_id\": \"<id>\", \"tenant_id\": \"<tenant>\", \"flow_id\": \"preventivi_v1\" }" },
+            "url": "{{baseUrl}}/flows/preventivi_v1/process"
+          }
+        }
+      ]
+    }
+  ]
+}
