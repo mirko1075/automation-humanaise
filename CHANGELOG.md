@@ -1,4 +1,18 @@
 # Changelog
+## v1.4.2 — Release: tests & docs (2025-12-20)
+
+### Added
+
+- Unit & integration tests for the Preventivo state machine and repository validation.
+
+### Changed
+
+- Bumped `openapi.json` version to `1.4.2` and updated release artifacts.
+
+### Notes
+
+- This release includes testing and documentation updates; no DB schema changes.
+
 ## v1.4.1 — Monitoring & Alerts for Preventivi pipeline (2025-12-20)
 
 ### Added
@@ -19,8 +33,6 @@
 
 - Alerts are currently Slack-first and guarded by config (`SLACK_ENABLED`, `SLACK_WEBHOOK_URL`).
 - TODOs are present in code for per-tenant thresholds, alert deduplication, and replay actions.
-
-## v1.4.0 — Deterministic Preventivi Normalizer (2025-12-20)
 
 ### Added
 

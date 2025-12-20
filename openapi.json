@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Edilcos Automation Backend",
-    "version": "1.4.0",
+    "version": "1.4.2",
      "description": "Edilcos Automation Backend API. Note: OneDrive endpoints use server-side OAuth app-only; clients do not supply tokens.",
   },
   "servers": [
