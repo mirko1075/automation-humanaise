@@ -13,6 +13,7 @@ from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.monitoring.context import set_request_context
 from app.api.admin.health import router as health_router
+from app.api.admin.tenants import router as tenants_router
 from app.api.admin.health import health as admin_health, health_deep as admin_health_deep
 from app.api.admin.errors import router as errors_router
 from app.api.ingress.gmail_webhook import router as gmail_router
@@ -78,6 +79,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Mount routers
 app.include_router(health_router)
+app.include_router(tenants_router)
 app.include_router(errors_router)
 app.include_router(gmail_router)
 app.include_router(monitoring_router)

@@ -16,8 +16,13 @@ async def test_upsert_creates_and_updates():
     engine_local = create_async_engine(test_db_url, future=True, echo=False)
     AsyncSessionLocal = async_sessionmaker(bind=engine_local, class_=AsyncSession, expire_on_commit=False)
 
-    # Create tables on the local engine
+    # Ensure models are imported so metadata includes all columns
+    import app.db.models  # noqa: F401
+
+    # Create tables on the local engine. Drop existing tables first to avoid
+    # stale file-backed DBs that may have older schema versions.
     async with engine_local.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:

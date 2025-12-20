@@ -4,15 +4,24 @@ CRUD operations for RawEvent model.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.db.models import RawEvent
+from app.db.models import RawEvent, Tenant
 from uuid import UUID
 from typing import Optional, List
+from app.db.session import SessionLocal
 
 class RawEventRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def create(self, tenant_id: UUID, flow_id: str, source: str, payload: dict, idempotency_key: str) -> RawEvent:
+        """Create and persist a RawEvent using a fresh async session.
+
+        This repository method uses its own `SessionLocal()` context to ensure
+        the DB operation is executed on a session bound to the current
+        asyncio event loop. This avoids accidental reuse of sessions across
+        concurrent tasks which can trigger asyncpg 'another operation is in
+        progress' or cross-loop Future errors.
+        """
         event = RawEvent(
             tenant_id=tenant_id,
             flow_id=flow_id,
@@ -20,10 +29,14 @@ class RawEventRepository:
             payload=payload,
             idempotency_key=idempotency_key
         )
-        self.db.add(event)
-        await self.db.commit()
-        await self.db.refresh(event)
-        return event
+
+        # Use an independent async session for the insert to avoid
+        # sharing the caller's session across concurrent operations.
+        async with SessionLocal() as session:
+            session.add(event)
+            await session.commit()
+            await session.refresh(event)
+            return event
 
     async def get(self, event_id: UUID) -> Optional[RawEvent]:
         result = await self.db.execute(select(RawEvent).where(RawEvent.id == event_id))

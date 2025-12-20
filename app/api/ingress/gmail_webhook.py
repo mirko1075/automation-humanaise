@@ -1,3 +1,33 @@
+# --- Module-level sync audit write utility ---
+def _sync_audit_write(a_action, a_tenant, a_payload, flow_id=""):
+    try:
+        sync_url = str(_settings.DATABASE_URL or "sqlite:///./.audit_fallback.db")
+        sync_url = sync_url.replace("+asyncpg", "")
+        sync_url = sync_url.replace("+aiosqlite", "")
+        eng = _create_engine(sync_url)
+        Session = _sessionmaker(bind=eng)
+        s = Session()
+        try:
+            al = _AuditLog(
+                id=_uuid4(),
+                tenant_id=a_tenant,
+                flow_id=flow_id,
+                action=a_action,
+                actor=None,
+                details=a_payload,
+                created_at=_dt.utcnow(),
+                updated_at=_dt.utcnow(),
+            )
+            s.add(al)
+            s.commit()
+        finally:
+            s.close()
+            try:
+                eng.dispose()
+            except Exception:
+                pass
+    except Exception:
+        pass
 # app/api/ingress/gmail_webhook.py
 """
 Gmail Pub/Sub webhook endpoint for Edilcos Automation Backend.
@@ -20,15 +50,22 @@ from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.db.repositories.raw_event_repository import RawEventRepository
 from app.db.repositories.tenant_repository import TenantRepository
-from app.db.repositories.external_token_repository import ExternalTokenRepository
 from app.db.session import SessionLocal
-from app.integrations import gmail_api
-from app.core.normalizer import normalize_raw_event
 import asyncio
 from uuid import UUID
 import base64
 import json
 import traceback
+from fastapi import Depends
+from app.db.session import get_async_session, SessionLocal
+from sqlalchemy.exc import IntegrityError
+from app.config import settings as _settings
+from sqlalchemy import create_engine as _create_engine, text as _text
+from sqlalchemy.orm import sessionmaker as _sessionmaker
+from app.config import settings as _settings
+from app.db.models import AuditLog as _AuditLog
+from uuid import uuid4 as _uuid4
+from datetime import datetime as _dt
 
 router = APIRouter(prefix="/gmail", tags=["gmail"])
 
@@ -39,7 +76,6 @@ async def get_tenant_id(email_address: str, db):
     reusing the application's async engine/session and prevent any
     cross-event-loop Future attachment issues.
     """
-    import asyncio as _asyncio
     from app.config import settings as _settings
     from sqlalchemy import create_engine as _create_engine, text as _text
     from sqlalchemy.orm import sessionmaker as _sessionmaker
@@ -58,10 +94,19 @@ async def get_tenant_id(email_address: str, db):
                 if row and row[0]:
                     return str(row[0])
 
-                # 2) check Tenant by name (case-insensitive)
-                row = s.execute(_text("SELECT id FROM tenants WHERE lower(name) = lower(:email) LIMIT 1"), {"email": email_addr}).first()
-                if row and row[0]:
-                    return str(row[0])
+                # 2) check Tenant by contact_channels JSON (email list)
+                # contact_channels -> JSON like {"email": ["a@b.com"], "whatsapp": ["+39..."]}
+                row = s.execute(_text("SELECT id, contact_channels FROM tenants WHERE contact_channels IS NOT NULL")).fetchall()
+                for r in row:
+                    try:
+                        tid = r[0]
+                        channels = r[1] or {}
+                        emails = channels.get('email') if isinstance(channels, dict) else None
+                        if emails and isinstance(emails, list):
+                            if email_addr.lower() in [e.lower() for e in emails if isinstance(e, str)]:
+                                return str(tid)
+                    except Exception:
+                        continue
 
                 return None
             finally:
@@ -73,7 +118,8 @@ async def get_tenant_id(email_address: str, db):
         except Exception:
             return None
 
-    loop = _asyncio.get_running_loop()
+    import asyncio
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _sync_lookup, email_address)
 
 @router.post("/webhook")
@@ -90,11 +136,12 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
         # }
         envelope = body.get("message") if isinstance(body, dict) else None
         if not envelope:
-            log("WARNING", "Invalid Pub/Sub envelope: missing 'message'", module="gmail_webhook", request_id=request_id)
+            log("WARNING", "Invalid Pub/Sub envelope: missing 'message'", module="gmail_webhook", request_id=str(request_id))
             return JSONResponse(status_code=400, content={"error": "Invalid envelope", "request_id": request_id})
         data_b64 = envelope.get("data")
+        print("DATA B64:", data_b64)
         if not data_b64:
-            log("WARNING", "Missing data in Pub/Sub envelope", module="gmail_webhook", request_id=request_id)
+            log("WARNING", "Missing data in Pub/Sub envelope", module="gmail_webhook", request_id=str(request_id))
             return JSONResponse(status_code=400, content={"error": "Missing data", "request_id": request_id})
         decoded = base64.urlsafe_b64decode(data_b64 + "==")
         payload = None
@@ -125,7 +172,7 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
                         # Last resort: keep raw base64 payload so we don't lose the event
                         payload = {"_raw_base64": data_b64}
                         try:
-                            log("WARNING", "Gmail webhook payload could not be JSON-decoded; stored raw base64", module="gmail_webhook", request_id=request_id)
+                            log("WARNING", "Gmail webhook payload could not be JSON-decoded; stored raw base64", module="gmail_webhook", request_id=str(request_id))
                         except Exception:
                             pass
         # Gmail Pub/Sub payload contains a reference, not full message content
@@ -136,186 +183,162 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
         # Only historyId and emailAddress are required for the pipeline
         missing_fields = [f for f in ["historyId", "emailAddress"] if not payload.get(f)]
         if missing_fields:
-            log("WARNING", f"Missing fields: {missing_fields}", module="gmail_webhook", request_id=request_id)
+            log("WARNING", f"Missing fields: {missing_fields}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
         import sys
         test_mode = "pytest" in sys.modules
 
-        async with SessionLocal() as db:
-            tenant_id = await get_tenant_id(email_address, db)
-            if not tenant_id:
-                log("ERROR", f"Tenant not found for {email_address}", module="gmail_webhook", request_id=request_id)
-                try:
-                    if test_mode:
-                        await audit_event("gmail_ingress_failed", None, None, payload, request_id=request_id)
-                    else:
-                        # Schedule a synchronous fallback audit write in threadpool
-                        import asyncio as _asyncio
-                        from app.config import settings as _settings
-                        from sqlalchemy import create_engine as _create_engine
-                        from sqlalchemy.orm import sessionmaker as _sessionmaker
-                        from app.db.models import AuditLog as _AuditLog
-                        from uuid import uuid4 as _uuid4
-                        from datetime import datetime as _dt
 
-                        def _sync_audit_write(a_action, a_payload):
-                            try:
-                                sync_url = str(_settings.DATABASE_URL or "sqlite:///./.audit_fallback.db")
-                                sync_url = sync_url.replace("+asyncpg", "")
-                                sync_url = sync_url.replace("+aiosqlite", "")
-                                eng = _create_engine(sync_url)
-                                Session = _sessionmaker(bind=eng)
-                                s = Session()
-                                try:
-                                    al = _AuditLog(
-                                        id=_uuid4(),
-                                        tenant_id=None,
-                                        flow_id=None,
-                                        action=a_action,
-                                        actor=None,
-                                        details=a_payload,
-                                        created_at=_dt.utcnow(),
-                                        updated_at=_dt.utcnow(),
-                                    )
-                                    s.add(al)
-                                    s.commit()
-                                finally:
-                                    s.close()
-                                    try:
-                                        eng.dispose()
-                                    except Exception:
-                                        pass
-                            except Exception:
-                                pass
+        if not isinstance(email_address, str) or not email_address:
+            log("ERROR", f"Invalid or missing email_address: {email_address}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
+            tenant_id = None
+        else:
+            tenant_id = await get_tenant_id(email_address, None)
 
-                        loop = _asyncio.get_running_loop()
-                        loop.run_in_executor(None, _sync_audit_write, "gmail_ingress_failed", payload)
-                except Exception as e:
-                    log("WARNING", f"Could not schedule audit_event: {e}", module="gmail_webhook", request_id=request_id)
-                return JSONResponse(status_code=404, content={"error": "Tenant not found", "request_id": request_id})
-            raw_event_repo = RawEventRepository(db)
-            # Idempotency check: perform using a fresh sync connection in a
-            # thread to avoid using the request's AsyncSession which may be
-            # impacted by event-loop/greenlet issues during test runs.
-            import asyncio as _asyncio
-            from app.config import settings as _settings
+        # Persist as RawEvent (canonical ingress/audit log)
+        # Use a synchronous DB write executed in a threadpool to avoid asyncpg
+        # connection-concurrency issues in the request event loop. This keeps
+        # the webhook ingest fast and isolated from the async DB pool.
+        idempotency_key = message_id or history_id or None
+        canonical_payload = payload or {"_raw_base64": data_b64}
+        outcome = "received" if tenant_id else "unassigned"
+
+        def _sync_create_rawevent(a_tenant_id, a_flow_id, a_source, a_payload, a_idempotency_key):
+            """Create RawEvent synchronously using a fresh sync engine/session.
+
+            Returns the created event id on success. Raises the original
+            exception to the caller so we can handle IntegrityError (idempotency)
+            and other errors appropriately.
+            """
+            from app.config import settings as _settings_local
             from sqlalchemy import create_engine as _create_engine, text as _text
             from sqlalchemy.orm import sessionmaker as _sessionmaker
+            from app.db.models import RawEvent as _RawEvent
+            from uuid import uuid4 as _uuid4_local
+            from datetime import datetime as _dt_local
 
-            def _sync_idempotency_check(a_tenant_id, a_message_id) -> bool:
-                try:
-                    sync_url = str(_settings.DATABASE_URL or "sqlite:///./.idempotency_check.db")
-                    sync_url = sync_url.replace("+asyncpg", "")
-                    sync_url = sync_url.replace("+aiosqlite", "")
-                    eng = _create_engine(sync_url)
-                    Session = _sessionmaker(bind=eng)
-                    s = Session()
-                    try:
-                        row = s.execute(_text("SELECT 1 FROM raw_events WHERE tenant_id = :tid AND idempotency_key = :mid LIMIT 1"), {"tid": str(a_tenant_id), "mid": a_message_id}).first()
-                        return bool(row)
-                    finally:
-                        s.close()
-                        try:
-                            eng.dispose()
-                        except Exception:
-                            pass
-                except Exception:
-                    return False
-
-            loop = _asyncio.get_running_loop()
-            # Use historyId as fallback idempotency key if message_id is missing
-            idempotency_key = message_id or history_id
-            is_dup = await loop.run_in_executor(None, _sync_idempotency_check, tenant_id, idempotency_key)
-            if is_dup:
-                log("INFO", f"Duplicate event for idempotency_key {idempotency_key}", module="gmail_webhook", request_id=request_id)
-                return JSONResponse(content={"status": "received", "request_id": request_id})
-
-            # Do NOT call Gmail APIs here. Persist the reference (historyId/email)
-            # so the normalizer/worker pipeline can perform history.list and fetch messages.
-            enriched_payload = {**payload, "note": "referenced_event_only"}
-            
-            raw_event = await raw_event_repo.create(
-                tenant_id=tenant_id,
-                flow_id=None,
-                source="gmail",
-                payload=enriched_payload,
-                idempotency_key=idempotency_key
-            )
-            await db.commit()
-            await db.refresh(raw_event)
+            sync_url = str(_settings_local.DATABASE_URL or "sqlite:///./.rawevent_sync.db")
+            sync_url = sync_url.replace("+asyncpg", "")
+            sync_url = sync_url.replace("+aiosqlite", "")
+            eng = _create_engine(sync_url)
+            Session = _sessionmaker(bind=eng)
+            s = Session()
             try:
-                if test_mode:
-                    await audit_event("gmail_ingress", tenant_id, None, payload, request_id=request_id)
-                else:
-                    import asyncio as _asyncio
-                    from app.config import settings as _settings
-                    from sqlalchemy import create_engine as _create_engine
-                    from sqlalchemy.orm import sessionmaker as _sessionmaker
-                    from app.db.models import AuditLog as _AuditLog
-                    from uuid import uuid4 as _uuid4
-                    from datetime import datetime as _dt
-
-                    def _sync_audit_write(a_action, a_tenant, a_payload):
-                        try:
-                            sync_url = str(_settings.DATABASE_URL or "sqlite:///./.audit_fallback.db")
-                            sync_url = sync_url.replace("+asyncpg", "")
-                            sync_url = sync_url.replace("+aiosqlite", "")
-                            eng = _create_engine(sync_url)
-                            Session = _sessionmaker(bind=eng)
-                            s = Session()
-                            try:
-                                al = _AuditLog(
-                                    id=_uuid4(),
-                                    tenant_id=a_tenant,
-                                    flow_id=None,
-                                    action=a_action,
-                                    actor=None,
-                                    details=a_payload,
-                                    created_at=_dt.utcnow(),
-                                    updated_at=_dt.utcnow(),
-                                )
-                                s.add(al)
-                                s.commit()
-                            finally:
-                                s.close()
-                                try:
-                                    eng.dispose()
-                                except Exception:
-                                    pass
-                        except Exception:
-                            pass
-
-                    loop = _asyncio.get_running_loop()
-                    loop.run_in_executor(None, _sync_audit_write, "gmail_ingress", tenant_id, payload)
-            except Exception as e:
-                log("WARNING", f"Could not schedule audit_event: {e}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
-            log("INFO", f"RawEvent saved for idempotency_key {idempotency_key}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
-            # Pipeline handoff: schedule normalizer in background
-            log("INFO", f"Handing off to EventNormalizer for raw_event_id {raw_event.id}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
-            # Decide whether to run normalizer/audit inline (tests) or as
-            # background tasks (production). Running inline keeps tests
-            # deterministic; background tasks avoid blocking/loop issues.
-            import sys
-            test_mode = "pytest" in sys.modules
-
-            if test_mode:
-                # Run the pipeline synchronously in tests so the test can
-                # observe resulting DB state immediately.
-                await normalize_raw_event(raw_event.id)
-                await audit_event("gmail_ingress_handoff", tenant_id, None, {"raw_event_id": str(raw_event.id)}, request_id=request_id)
-            else:
+                ev = _RawEvent(
+                    id=_uuid4_local(),
+                    tenant_id=a_tenant_id,
+                    flow_id=a_flow_id,
+                    source=a_source,
+                    payload=a_payload,
+                    processed=False,
+                    idempotency_key=a_idempotency_key or "",
+                    created_at=_dt_local.utcnow(),
+                    updated_at=_dt_local.utcnow(),
+                    deleted_at=None,
+                )
+                s.add(ev)
+                s.commit()
+                s.refresh(ev)
+                return str(ev.id)
+            finally:
                 try:
-                    asyncio.create_task(normalize_raw_event(raw_event.id))
+                    s.close()
                 except Exception:
-                    await normalize_raw_event(raw_event.id)
-
+                    pass
                 try:
-                    asyncio.create_task(audit_event("gmail_ingress_handoff", tenant_id, None, {"raw_event_id": str(raw_event.id)}, request_id=request_id))
-                except Exception as e:
-                    log("WARNING", f"Could not schedule audit_event: {e}", module="gmail_webhook", request_id=request_id, tenant_id=tenant_id)
-        return JSONResponse(content={"status": "received", "request_id": request_id})
+                    eng.dispose()
+                except Exception:
+                    pass
+
+        try:
+            loop = asyncio.get_running_loop()
+            # execute sync DB insert in threadpool
+            ev_id = await loop.run_in_executor(
+                None,
+                _sync_create_rawevent,
+                tenant_id,
+                None,
+                "gmail",
+                {
+                    "channel": "email",
+                    "identifier": email_address,
+                    "external_ref": str(history_id) if history_id is not None else None,
+                    "outcome": outcome,
+                    "original": canonical_payload,
+                },
+                str(idempotency_key) if idempotency_key is not None else "",
+            )
+        except Exception as exc:
+            # Handle IntegrityError (unique idempotency) specially if it originates
+            # from the DB layer. Since we're in a thread, we need to inspect the
+            # exception chain for IntegrityError from SQLAlchemy/DBAPI.
+            import sqlalchemy
+            from sqlalchemy.exc import IntegrityError as _IntegrityError
+            tb = traceback.format_exc()
+            # If it's an IntegrityError, treat as duplicate -> ACK
+            if isinstance(exc, _IntegrityError) or any(isinstance(e, _IntegrityError) for e in getattr(exc, "__cause__", []) or []):
+                try:
+                    log("INFO", f"Duplicate RawEvent idempotency_key={idempotency_key}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
+                except Exception:
+                    pass
+                return JSONResponse(content={"status": "received", "request_id": str(request_id) if request_id is not None else ""})
+
+            log("ERROR", f"Exception persisting RawEvent: {exc}\n{tb}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
+            try:
+                loop.run_in_executor(None, _sync_audit_write, "gmail_ingress_exception", None, {"error": str(exc), "traceback": tb}, "gmail_ingress_exception")
+            except Exception:
+                pass
+            return JSONResponse(status_code=500, content={"error": "Internal Server Error", "request_id": str(request_id) if request_id is not None else ""})
+
+        log("INFO", f"RawEvent persisted id={ev_id} tenant_id={tenant_id}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "", tenant_id=tenant_id)
+        return JSONResponse(content={"status": outcome, "request_id": str(request_id) if request_id is not None else ""})
+        # Idempotency check: perform using a fresh sync connection in a
+        # thread to avoid using the request's AsyncSession which may be
+        # impacted by event-loop/greenlet issues during test runs.
+
+        def _sync_idempotency_check(a_tenant_id, a_message_id) -> bool:
+            try:
+                sync_url = str(_settings.DATABASE_URL or "sqlite:///./.idempotency_check.db")
+                sync_url = sync_url.replace("+asyncpg", "")
+                sync_url = sync_url.replace("+aiosqlite", "")
+                eng = _create_engine(sync_url)
+                Session = _sessionmaker(bind=eng)
+                s = Session()
+                try:
+                    row = s.execute(_text("SELECT 1 FROM raw_events WHERE tenant_id = :tid AND idempotency_key = :mid LIMIT 1"), {"tid": str(a_tenant_id), "mid": a_message_id}).first()
+                    return bool(row)
+                finally:
+                    s.close()
+                    try:
+                        eng.dispose()
+                    except Exception:
+                        pass
+            except Exception:
+                return False
+
+        loop = asyncio.get_running_loop()
+        # Use historyId as fallback idempotency key if message_id is missing
+        idempotency_key = message_id or history_id
+        is_dup = await loop.run_in_executor(None, _sync_idempotency_check, tenant_id, idempotency_key)
+        if is_dup:
+            log("INFO", f"Duplicate event for idempotency_key {idempotency_key}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
+            return JSONResponse(content={"status": "received", "request_id": str(request_id) if request_id is not None else ""})
+
+        # Do NOT call Gmail APIs here. Persist the reference (historyId/email)
+        # so the normalizer/worker pipeline can perform history.list and fetch messages.
+        enriched_payload = {**payload, "note": "referenced_event_only"}
+
+        # Convert tenant_id to UUID if needed
+        from uuid import UUID as _UUID
+        try:
+            tenant_uuid = tenant_id if isinstance(tenant_id, _UUID) else _UUID(str(tenant_id))
+        except Exception:
+            log("ERROR", f"Invalid tenant_id format: {tenant_id}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
+            return JSONResponse(status_code=400, content={"error": "Invalid tenant_id format", "request_id": str(request_id) if request_id is not None else ""})
+
+        
     except Exception as exc:
         tb = traceback.format_exc()
-        log("ERROR", f"Exception in Gmail webhook: {exc}\n{tb}", module="gmail_webhook", request_id=request_id)
+        log("ERROR", f"Exception in Gmail webhook: {exc}\n{tb}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
         # Schedule audit & slack notifications as background tasks to avoid
         # creating futures attached to a different event loop during error handling.
         # In exception handlers we must avoid creating or awaiting tasks
@@ -323,47 +346,9 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
         # schedule a synchronous fallback audit write in the threadpool
         # using a fresh sync engine. Do not call async alerting here.
         try:
-            import asyncio as _asyncio
-            from app.config import settings as _settings
-            from sqlalchemy import create_engine as _create_engine
-            from sqlalchemy.orm import sessionmaker as _sessionmaker
-            from app.db.models import AuditLog
-            from uuid import uuid4 as _uuid4
-            from datetime import datetime as _dt
-
-            def _sync_audit_write(a_action, a_payload):
-                try:
-                    sync_url = str(_settings.DATABASE_URL or "sqlite:///./.audit_fallback.db")
-                    sync_url = sync_url.replace("+asyncpg", "")
-                    sync_url = sync_url.replace("+aiosqlite", "")
-                    eng = _create_engine(sync_url)
-                    Session = _sessionmaker(bind=eng)
-                    s = Session()
-                    try:
-                        al = AuditLog(
-                            id=_uuid4(),
-                            tenant_id=None,
-                            flow_id=None,
-                            action=a_action,
-                            actor=None,
-                            details=a_payload,
-                            created_at=_dt.utcnow(),
-                            updated_at=_dt.utcnow(),
-                        )
-                        s.add(al)
-                        s.commit()
-                    finally:
-                        s.close()
-                        try:
-                            eng.dispose()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-            loop = _asyncio.get_running_loop()
-            loop.run_in_executor(None, _sync_audit_write, "gmail_ingress_exception", {"error": str(exc), "traceback": tb})
+            loop = asyncio.get_running_loop()
+            loop.run_in_executor(None, _sync_audit_write, "gmail_ingress_exception", None, {"error": str(exc), "traceback": tb}, "gmail_ingress_exception")
         except Exception as e:
-            log("WARNING", f"Could not schedule sync fallback audit write: {e}", module="gmail_webhook", request_id=request_id)
+            log("WARNING", f"Could not schedule sync fallback audit write: {e}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
 
-        return JSONResponse(status_code=500, content={"error": "Internal Server Error", "request_id": request_id})
+        return JSONResponse(status_code=500, content={"error": "Internal Server Error", "request_id": str(request_id) if request_id is not None else ""})

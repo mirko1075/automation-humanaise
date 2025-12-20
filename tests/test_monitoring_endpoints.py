@@ -37,6 +37,9 @@ async def db_session(tmp_path):
     test_engine = create_async_engine(test_url, future=True, echo=False)
     TestSessionLocal = sessionmaker(bind=test_engine, class_=AsyncSession, expire_on_commit=False)
 
+    # Ensure model modules are imported so Base metadata includes all columns
+    import app.db.models  # noqa: F401
+
     # Create tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -22,8 +22,13 @@ async def test_external_token_persistence():
     engine_local = create_async_engine(test_db_url, future=True, echo=False)
     AsyncSessionLocal = async_sessionmaker(bind=engine_local, class_=AsyncSession, expire_on_commit=False)
 
-    # Create schema on the local engine
+    # Import models to ensure Base metadata includes latest columns
+    import app.db.models  # noqa: F401
+
+    # Create schema on the local engine. Drop existing tables first to avoid
+    # stale file-backed DBs that may have older schema versions.
     async with engine_local.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     try:
