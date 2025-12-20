@@ -33,7 +33,7 @@ ErrorLog, AuditLog.
 # TODO(alerting): allow alert thresholds to be configured via env or DB
 """
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional, List
 
 try:
     import structlog
@@ -65,22 +65,29 @@ async def overview(db: AsyncSession = Depends(get_async_session)) -> Any:
     """
     now = _now_utc()
     since_24h = now - timedelta(hours=24)
+    # Database columns use naive UTC datetimes (datetime.utcnow). asyncpg/Postgres
+    # will raise when comparing offset-aware datetimes with naive ones. Convert
+    # the cutoff to a naive UTC datetime for queries.
+    if since_24h.tzinfo is not None:
+        since_24h_query = since_24h.astimezone(timezone.utc).replace(tzinfo=None)
+    else:
+        since_24h_query = since_24h
 
     # Counters in last 24h
     # TODO(monitoring): track number of raw events received, processed, failed, and pending
-    raw_received_q = select(func.count()).select_from(models.RawEvent).where(models.RawEvent.created_at >= since_24h)
+    raw_received_q = select(func.count()).select_from(models.RawEvent).where(models.RawEvent.created_at >= since_24h_query)
     raw_processed_q = select(func.count()).select_from(models.RawEvent).where(
-        and_(models.RawEvent.created_at >= since_24h, models.RawEvent.processed == True)
+        and_(models.RawEvent.created_at >= since_24h_query, models.RawEvent.processed == True)
     )
     raw_pending_q = select(func.count()).select_from(models.RawEvent).where(
-        and_(models.RawEvent.created_at >= since_24h, models.RawEvent.processed == False)
+        and_(models.RawEvent.created_at >= since_24h_query, models.RawEvent.processed == False)
     )
 
     # errors: ReceivedEmail.outcome='error' OR ErrorLog entries
     raw_errors_q = select(func.count()).select_from(models.ReceivedEmail).where(
-        and_(models.ReceivedEmail.created_at >= since_24h, models.ReceivedEmail.outcome == 'error')
+        and_(models.ReceivedEmail.created_at >= since_24h_query, models.ReceivedEmail.outcome == 'error')
     )
-    error_logs_q = select(func.count()).select_from(models.ErrorLog).where(models.ErrorLog.created_at >= since_24h)
+    error_logs_q = select(func.count()).select_from(models.ErrorLog).where(models.ErrorLog.created_at >= since_24h_query)
 
     # last event per source (at least gmail)
     # TODO(monitoring): track last successful processing timestamp per source (email, webhook, api)
@@ -117,6 +124,35 @@ async def overview(db: AsyncSession = Depends(get_async_session)) -> Any:
         status = "warning"
     if raw_pending > 1000 or total_errors > 100:
         status = "critical"
+
+    # Build a minimal alerts list based on thresholds (keeps behavior simple)
+    alerts: List[dict] = []
+    if raw_pending > 1000:
+        alerts.append({"level": "CRITICAL", "reason": f"pending_raw_events={raw_pending} > 1000"})
+    elif raw_pending > 100:
+        alerts.append({"level": "WARNING", "reason": f"pending_raw_events={raw_pending} > 100"})
+
+    if total_errors > 100:
+        alerts.append({"level": "CRITICAL", "reason": f"total_errors={total_errors} > 100"})
+    elif total_errors > 0:
+        alerts.append({"level": "WARNING", "reason": f"total_errors={total_errors} > 0"})
+
+    # Summary payload returned to caller
+    summary = {
+        "status": status,
+        "generated_at": now.isoformat(),
+        "counters_last_24h": {
+            "raw_received": raw_received,
+            "raw_processed": raw_processed,
+            "raw_pending": raw_pending,
+            "raw_errors": raw_errors_recev,
+            "error_logs": error_logs_count,
+            "total_errors": total_errors,
+        },
+        "last_event_at": last_gmail.isoformat() if last_gmail else None,
+        "alerts_sent": [],
+    }
+
     # Emit notifications if any alerts found
     # TODO(alerting): add alert deduplication window to avoid repeated notifications
     # TODO(alerting): support multiple alert channels (slack, email, webhook) via config
