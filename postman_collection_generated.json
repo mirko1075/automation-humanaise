@@ -90,5 +90,38 @@
         "url": {"raw": "{{baseUrl}}/auth/google/callback?code=CODE&state=STATE", "host": ["{{baseUrl}}"], "path": ["auth","google","callback"], "query": [{"key":"code","value":"CODE"},{"key":"state","value":"STATE"}]}
       }
     }
+    ,
+    {
+      "name": "Monitoring Overview",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/admin/monitoring/overview", "host": ["{{baseUrl}}"], "path": ["admin","monitoring","overview"]}
+      }
+    },
+    {
+      "name": "Monitoring Stalled",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/admin/monitoring/stalled?older_than_minutes=15&limit=50", "host": ["{{baseUrl}}"], "path": ["admin","monitoring","stalled"]}
+      }
+    },
+    {
+      "name": "Monitoring Errors",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/admin/monitoring/errors?since_hours=24", "host": ["{{baseUrl}}"], "path": ["admin","monitoring","errors"]}
+      }
+    },
+    {
+      "name": "Monitoring Check Alerts",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {"raw": "{{baseUrl}}/admin/monitoring/check-alerts", "host": ["{{baseUrl}}"], "path": ["admin","monitoring","check-alerts"]}
+      }
+    }
   ]
 }

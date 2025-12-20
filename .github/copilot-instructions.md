@@ -1,296 +1,49 @@
-# Copilot Instructions for Edilcos Automation Backend
+# Copilot Instructions (Concise) — automation-humanaise
 
-You are assisting in the development of a modular, reliable, multi-tenant backend in **Python (FastAPI)**.  
-Your goal is to generate **clean, scalable, production-ready code**, following the architecture below.
+This file helps AI coding agents get productive quickly in this repository. Keep edits concise, use existing patterns, and prefer small, focused changes.
 
-Focus: clarity, modularity, correctness, and maintainability.
+Key repo facts:
+- Language: Python 3.11+ (FastAPI)
+- Runtime entry: [app/main.py](app/main.py)
+- Tests: `pytest` (see `pytest.ini` and `tests/`)
 
----
+What matters most for generated code:
+- Multi-tenant: every persisted entity and event must include `tenant_id` and `flow_id` and all queries must filter by `tenant_id`.
+- Keep controllers thin: controllers validate/identify tenant and call `core/*` services — no business logic in API routers.
+- Persist RAW events (incoming webhooks) and use idempotency keys (`gmail_message_id`, `whatsapp_message_id`, etc.). See [app/db/models.py](app/db/models.py).
+- Integrations live under [app/integrations](app/integrations): include retry (tenacity-like backoff), logging, and credential via env vars.
 
-## 1. PROJECT ARCHITECTURE (MANDATORY)
+Project-specific patterns and examples:
+- Normalizer: unified event format lives around [app/core/normalizer.py](app/core/normalizer.py). Generated flows must accept that NormalizedEvent shape.
+- Dispatcher / router: event routing and flow dispatching logic is in [app/core/dispatcher.py](app/core/dispatcher.py).
+- Flows: handlers are under [app/api/flows](app/api/flows). They validate the normalized event and delegate to `core/*` services.
+- Repositories: use `app/db/repositories/*` for DB access. Always commit and refresh objects before returning.
 
-The backend follows this folder structure:
+Developer workflows (commands you'll generate/mention):
+- Set up venv and install deps: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (also provided by `setup.sh`).
+- Run dev server: `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`.
+- Run tests: `pytest -q` (use `tests/` fixtures; see `tests/conftest.py`).
 
-app/
-  main.py
-  config.py
-  api/
-    ingress/
-      gmail_webhook.py
-      whatsapp_webhook.py
-      generic_webhook.py
-    flows/
-      preventivi_v1.py
-      documenti_v1.py
-      attrezzature_v1.py
-    notifications/
-      whatsapp.py
-  core/
-    normalizer.py
-    router.py
-    preventivi_service.py
-    documents_service.py
-    attrezzature_service.py
-  integrations/
-    gmail_api.py
-    whatsapp_api.py
-    onedrive_api.py
-  db/
-    models.py
-    session.py
-    repositories/
-  scheduler/
-    jobs.py
-    scheduler.py
-  monitoring/
-    logger.py
-    audit.py
-    slack_alerts.py
+Code generation rules (strict):
+- Add a file header comment with file path (e.g., `# app/api/ingress/gmail_webhook.py`).
+- Include complete imports, type hints, and Google-style docstrings.
+- Log important events with `structlog` (see [app/monitoring/logger.py](app/monitoring/logger.py)).
+- Do not insert TODOs or unfinished `pass` in production logic; prefer small, test-covered implementations.
 
-Follow this architecture strictly unless explicitly instructed otherwise.
+Where to look for examples:
+- Webhook handling: [app/api/ingress/gmail_webhook.py](app/api/ingress/gmail_webhook.py)
+- Flow examples: [app/api/flows/preventivi_v1.py](app/api/flows/preventivi_v1.py)
+- Core services: [app/core/preventivi_service.py](app/core/preventivi_service.py)
+- DB models & sessions: [app/db/models.py](app/db/models.py) and [app/db/session.py](app/db/session.py)
 
----
+When uncertain, follow these priorities:
+1. Keep tenant isolation (`tenant_id`) and idempotency.
+2. Prefer explicit logging and return structured responses: `{ "status": "success"|"error", "data":..., "error":... }`.
+3. Move non-trivial logic into `core/` and `db/repositories/`.
 
-## 2. CORE PRINCIPLES
+If you change behavior that affects tests, update or add tests in `tests/` and run `pytest` locally.
 
-Always respect:
-
-### (1) Modularity
-- Each module must have a single responsibility.
-- No file should exceed ~200–250 lines unless necessary.
-- Shared logic → move to `core/` or `utils/`.
-
-### (2) Multi-tenant
-Every model and event MUST include:
-- `tenant_id`
-- `flow_id`
-
-Every query must filter by `tenant_id`.
-
-### (3) Reliability
-Backend must:
-- never drop events
-- log everything important
-- save RAW email/webhook payloads
-- use idempotency keys (`gmail_message_id`, `whatsapp_message_id`, etc.)
-- retry external API failures
-
-### (4) Clean FastAPI structure
-- Use routers (`APIRouter`) per module.
-- Use dependency injections when appropriate.
-- Use Pydantic models for request/response.
-
-### (5) Strict typing
-Always include:
-- type hints
-- return types
-- docstrings
-
-### (6) No business logic inside controllers
-Controllers only:
-- validate input
-- identify tenant
-- call service modules
-
-All logic goes into:
-- `core/*`
-- `services/*`
-
----
-
-## 3. MANDATORY MODULE BEHAVIORS
-
-### 3.1 Ingress Layer (webhooks)
-- Receives Gmail Pub/Sub, WhatsApp Webhook, generic webhooks.
-- Validates payloads.
-- Identifies tenant (from email address, phone number, or URL param).
-- Saves RAW event in DB.
-- Forwards normalized event to Flow Router.
-
-### 3.2 Event Normalizer
-- Converts Gmail MIME / WhatsApp payloads into a unified event structure:
-
-```python
-{
-  "event_id": "unique_id",
-  "tenant_id": "acme_corp",
-  "flow_id": "preventivi_v1",
-  "source": "gmail" | "whatsapp" | "generic",
-  "timestamp": "ISO8601",
-  "sender": {
-    "email": "...",
-    "phone": "...",
-    "name": "..."
-  },
-  "subject": "...",
-  "body": "...",
-  "attachments": [
-    {
-      "filename": "...",
-      "mime_type": "...",
-      "size_bytes": 123,
-      "storage_url": "..."
-    }
-  ],
-  "metadata": {
-    "gmail_message_id": "...",
-    "whatsapp_message_id": "...",
-    "thread_id": "..."
-  }
-}
-```
-
-### 3.3 Flow Router
-- Receives normalized events.
-- Determines which flow to trigger based on:
-  - `tenant_id`
-  - `flow_id`
-  - routing rules (keywords, sender patterns, etc.)
-- Dispatches to the appropriate flow handler in `api/flows/`.
-
-### 3.4 Flow Handlers (`api/flows/`)
-Each flow (e.g., `preventivi_v1.py`) must:
-- Validate event structure.
-- Call appropriate service logic from `core/`.
-- Handle errors gracefully.
-- Return status/result.
-- Trigger notifications if needed.
-
-### 3.5 Core Services (`core/`)
-Business logic modules:
-- **`preventivi_service.py`**: Extract quote data, validate, store, generate responses.
-- **`documents_service.py`**: Process documents, OCR, classification, storage.
-- **`attrezzature_service.py`**: Equipment tracking, maintenance scheduling.
-
-All services must:
-- Accept `tenant_id` and `flow_id`.
-- Log all operations.
-- Use repository pattern for DB access.
-- Return structured results (success/failure + data).
-
-### 3.6 Integrations (`integrations/`)
-External API wrappers:
-- **Gmail API**: Fetch messages, parse MIME, download attachments.
-- **WhatsApp API**: Send messages, handle media.
-- **OneDrive API**: Upload/download files, manage folders.
-
-All integrations must:
-- Include retry logic (exponential backoff).
-- Log requests/responses.
-- Handle rate limits.
-- Use environment variables for credentials.
-
-### 3.7 Database Layer (`db/`)
-- **`models.py`**: SQLAlchemy models (all include `tenant_id`, `created_at`, `updated_at`).
-- **`session.py`**: Database session management, connection pooling.
-- **`repositories/`**: Data access layer (CRUD operations per entity).
-
-Example models:
-- `RawEvent`: Store all incoming webhooks.
-- `ProcessedEvent`: Store normalized events.
-- `Preventivo`: Quote/estimate data.
-- `Document`: Document metadata.
-- `Attrezzatura`: Equipment records.
-- `Tenant`: Tenant configuration.
-- `FlowConfig`: Flow routing rules per tenant.
-
-### 3.8 Scheduler (`scheduler/`)
-- **`jobs.py`**: Define background jobs (retries, cleanups, reports).
-- **`scheduler.py`**: APScheduler configuration.
-
-Jobs must:
-- Be idempotent.
-- Include error handling.
-- Log execution.
-
-### 3.9 Monitoring (`monitoring/`)
-- **`logger.py`**: Structured logging (JSON format).
-- **`audit.py`**: Audit trail for critical operations.
-- **`slack_alerts.py`**: Send alerts for failures/anomalies.
-
----
-
-## 4. DATABASE MODELS - REQUIRED FIELDS
-
-Every model MUST include:
-
-```python
-class BaseModel:
-    id: UUID (primary key)
-    tenant_id: str (indexed, non-nullable)
-    created_at: datetime (auto)
-    updated_at: datetime (auto)
-    deleted_at: datetime (nullable, soft delete)
-```
-
-Additional fields per entity:
-- **RawEvent**: `source`, `payload` (JSONB), `processed` (bool), `idempotency_key`.
-- **ProcessedEvent**: `event_type`, `flow_id`, `normalized_data` (JSONB), `status`.
-- **Preventivo**: `customer_name`, `email`, `phone`, `quote_data` (JSONB), `status`, `pdf_url`.
-
----
-
-## 5. ERROR HANDLING STRATEGY
-
-### (1) Never fail silently
-- Log every error with context (`tenant_id`, `flow_id`, event data).
-- Store failed events in a `failed_events` table for retry.
-
-### (2) Use try-except everywhere
-```python
-try:
-    result = service.process(data)
-except ValidationError as e:
-    logger.error(f"Validation failed: {e}", extra={"tenant_id": tenant_id})
-    return {"error": "invalid_data", "details": str(e)}
-except ExternalAPIError as e:
-    logger.error(f"API call failed: {e}", extra={"tenant_id": tenant_id})
-    # Queue for retry
-    return {"error": "api_failure", "retry": True}
-except Exception as e:
-    logger.exception(f"Unexpected error: {e}")
-    # Alert to Slack
-    return {"error": "internal_error"}
-```
-
-### (3) Retry logic
-For external API calls:
-```python
-from tenacity import retry, stop_after_attempt, wait_exponential
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def call_external_api():
-    # API call here
-    pass
-```
-
----
-
-## 6. CONFIGURATION MANAGEMENT
-
-Use **Pydantic Settings** (`config.py`):
-
-```python
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    DATABASE_URL: str
-    GMAIL_CREDENTIALS_PATH: str
-    WHATSAPP_API_TOKEN: str
-    ONEDRIVE_CLIENT_ID: str
-    ONEDRIVE_CLIENT_SECRET: str
-    SLACK_WEBHOOK_URL: str
-    LOG_LEVEL: str = "INFO"
-    
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
-```
-
-Never hardcode credentials. Always use environment variables.
-
----
+End of concise guide — for the full architecture and detailed rules, see DOCUMENTATION_INDEX.md and IMPLEMENTATION_SUMMARY.md.
 
 ## 7. TESTING REQUIREMENTS
 

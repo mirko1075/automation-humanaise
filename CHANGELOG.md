@@ -1,4 +1,25 @@
 # Changelog
+## v1.4.1 — Monitoring & Alerts for Preventivi pipeline (2025-12-20)
+
+### Added
+
+- Read-only monitoring endpoints for the Gmail → Preventivi pipeline:
+  - `GET /admin/monitoring/overview` — high-level counters and last-event timestamps
+  - `GET /admin/monitoring/stalled` — list stalled RawEvent rows (unprocessed)
+  - `GET /admin/monitoring/errors` — recent error log and received-email errors
+  - `POST /admin/monitoring/check-alerts` — pull-based alert checker (Slack notifications)
+
+- Alerting engine (pull-based) with V1 rules and Slack notification integration.
+
+### Changed
+
+- Updated `openapi.json` and Postman collections to include the new monitoring endpoints.
+
+### TODOs / Notes
+
+- Alerts are currently Slack-first and guarded by config (`SLACK_ENABLED`, `SLACK_WEBHOOK_URL`).
+- TODOs are present in code for per-tenant thresholds, alert deduplication, and replay actions.
+
 ## v1.4.0 — Deterministic Preventivi Normalizer (2025-12-20)
 
 ### Added

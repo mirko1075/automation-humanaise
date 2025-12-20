@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Edilcos Automation Backend",
-    "version": "1.3.7",
+    "version": "1.4.0",
      "description": "Edilcos Automation Backend API. Note: OneDrive endpoints use server-side OAuth app-only; clients do not supply tokens.",
   },
   "servers": [
@@ -25,7 +25,44 @@
                     "status": { "type": "string", "example": "healthy" }
                   }
                 }
-              }
+                  ,
+                  "/admin/monitoring/overview": {
+                    "get": {
+                      "summary": "Monitoring overview",
+                      "operationId": "getMonitoringOverview",
+                      "responses": {
+                        "200": { "description": "Monitoring overview" }
+                      }
+                    }
+                  },
+                  "/admin/monitoring/stalled": {
+                    "get": {
+                      "summary": "List stalled raw events",
+                      "operationId": "getMonitoringStalled",
+                      "parameters": [
+                        {"name": "older_than_minutes", "in": "query", "schema": {"type": "integer"}},
+                        {"name": "limit", "in": "query", "schema": {"type": "integer"}}
+                      ],
+                      "responses": {"200": {"description": "List of stalled events"}}
+                    }
+                  },
+                  "/admin/monitoring/errors": {
+                    "get": {
+                      "summary": "Recent errors",
+                      "operationId": "getMonitoringErrors",
+                      "parameters": [
+                        {"name": "since_hours", "in": "query", "schema": {"type": "integer"}}
+                      ],
+                      "responses": {"200": {"description": "Recent errors"}}
+                    }
+                  },
+                  "/admin/monitoring/check-alerts": {
+                    "post": {
+                      "summary": "Run monitoring checks and emit alerts",
+                      "operationId": "postMonitoringCheckAlerts",
+                      "responses": {"200": {"description": "Alert summary"}}
+                    }
+                  }
             }
           }
         }

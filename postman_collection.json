@@ -199,6 +199,59 @@
                         "description": "Fetch processed Gmail events (accepted). Use processed=false for discarded."
                       }
                     }
+                    ,
+                    {
+                      "name": "Monitoring Overview",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/overview",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "overview"]
+                        },
+                        "description": "High-level monitoring overview"
+                      }
+                    },
+                    {
+                      "name": "Monitoring Stalled",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/stalled?older_than_minutes=15&limit=50",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "stalled"]
+                        },
+                        "description": "List stalled raw events older than threshold"
+                      }
+                    },
+                    {
+                      "name": "Monitoring Errors",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/errors?since_hours=24",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "errors"]
+                        },
+                        "description": "Fetch recent errors"
+                      }
+                    },
+                    {
+                      "name": "Monitoring Check Alerts",
+                      "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/monitoring/check-alerts",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "monitoring", "check-alerts"]
+                        },
+                        "description": "Run monitoring checks and send alerts when thresholds are crossed"
+                      }
+                    }
                   ]
                 },
                 {
