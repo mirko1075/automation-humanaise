@@ -61,6 +61,20 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                 # Load RawEvent
                 res = await db.execute(select(RawEvent).where(RawEvent.id == raw_event_id))
                 raw = res.scalar_one_or_none()
+                # Some test DB backends (sqlite) may store UUIDs as text; if not
+                # found by UUID object, try string comparison as a fallback.
+                if raw is None:
+                    # Fallback: some DB backends (sqlite) store UUIDs as text.
+                    # Try casting the id column to string for comparison.
+                    try:
+                        from sqlalchemy import cast, String as _String
+
+                        res2 = await db.execute(select(RawEvent).where(cast(RawEvent.id, _String) == str(raw_event_id)))
+                        raw = res2.scalar_one_or_none()
+                    except Exception:
+                        # Last-ditch fallback: match id against string directly
+                        res2 = await db.execute(select(RawEvent).where(RawEvent.id == str(raw_event_id)))
+                        raw = res2.scalar_one_or_none()
                 if raw is None:
                     return None
                 if getattr(raw, "processed", False):
@@ -206,3 +220,6 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
             app_log("ERROR", "Failed to route normalized event", component="normalizer", raw_event_id=str(raw_event_id))
         except Exception:
             pass
+
+    # Return the DTO for the caller (tests expect the normalized DTO on success)
+    return result_dto

@@ -170,11 +170,12 @@ def cleanup_asyncio_tasks_and_engines():
         except Exception:
             pass
 
-        # Dispose async engine
-        try:
-            await engine.dispose()
-        except Exception:
-            pass
+        # NOTE: Do NOT dispose the async engine here. Async engine disposal
+        # is handled by the session-scoped `dispose_db_engines` fixture to
+        # ensure disposal runs in a stable context and does not interfere
+        # with pytest's event loop handling. Disposing the async engine
+        # per-test can cause greenlet/async context errors (see SQLAlchemy
+        # greenlet_spawn warnings) when tests run concurrently.
 
     try:
         asyncio.run(_cleanup())
