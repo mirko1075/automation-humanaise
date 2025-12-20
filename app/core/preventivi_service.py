@@ -22,6 +22,7 @@ from app.integrations.onedrive_client import OneDriveClient
 from app.config import settings
 import aiohttp
 from datetime import datetime, timedelta
+from app.core.preventivo_state import PreventivoStatus
 
 
 async def upsert_preventivo_onedrive_excel(
@@ -123,12 +124,13 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
             quote_repo = QuoteRepository(db)
             quote = None
             if classification == "new_quote":
+                # Legacy code used status="OPEN" — map to NEW in the state machine
                 quote = await quote_repo.create(
                     tenant_id=tenant_id,
                     flow_id=flow_id,
                     customer_id=customer.id,
                     quote_data=extracted,
-                    status="OPEN",
+                    status=PreventivoStatus.NEW.value,
                     pdf_url=None
                 )
                 await audit_event("quote_created", tenant_id, flow_id, {"quote_id": str(quote.id)}, request_id=request_id)
@@ -254,12 +256,13 @@ async def find_and_update_quote(repo: QuoteRepository, tenant_id: str, customer:
     quotes = await repo.list_by_tenant(tenant_id)
     match = next((q for q in quotes if q.customer_id == customer.id and q.quote_data.get("subject") == event.normalized_data.get("subject")), None)
     if not match:
+        # Map legacy OPEN -> NEW
         match = await repo.create(
             tenant_id=tenant_id,
             flow_id=event.flow_id,
             customer_id=customer.id,
             quote_data=extracted,
-            status="OPEN",
+            status=PreventivoStatus.NEW.value,
             pdf_url=None
         )
         await audit_event("quote_created", tenant_id, event.flow_id, {"quote_id": str(match.id)})

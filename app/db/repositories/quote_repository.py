@@ -7,6 +7,7 @@ from sqlalchemy.future import select
 from app.db.models import Quote
 from uuid import UUID
 from typing import Optional, List
+from app.core.preventivo_state import validate_transition
 
 class QuoteRepository:
     def __init__(self, db: AsyncSession):
@@ -38,6 +39,14 @@ class QuoteRepository:
         quote = await self.get(quote_id)
         if not quote:
             return None
+        # Validate status transitions explicitly
+        if "status" in kwargs:
+            new_status = kwargs.get("status")
+            try:
+                validate_transition(getattr(quote, "status", None), new_status)
+            except ValueError:
+                # Do not change behavior beyond rejecting invalid transition
+                raise
         for key, value in kwargs.items():
             setattr(quote, key, value)
         await self.db.commit()
