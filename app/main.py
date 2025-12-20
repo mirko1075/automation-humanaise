@@ -13,6 +13,7 @@ from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.monitoring.context import set_request_context
 from app.api.admin.health import router as health_router
+from app.api.admin.health import health as admin_health, health_deep as admin_health_deep
 from app.api.admin.errors import router as errors_router
 from app.api.ingress.gmail_webhook import router as gmail_router
 from app.api.admin.monitoring import router as monitoring_router
@@ -83,6 +84,24 @@ app.include_router(monitoring_router)
 app.include_router(integrations_router)
 app.include_router(auth_router)
 app.include_router(auth_public_router)
+
+
+# Backwards-compatible aliases: expose /health and /health/deep at root
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.session import get_async_session
+
+
+@app.get("/health")
+async def health_root():
+    """Alias for admin health endpoint at /health"""
+    return await admin_health()
+
+
+@app.get("/health/deep")
+async def health_deep_root(db: AsyncSession = Depends(get_async_session)):
+    """Alias for admin deep health endpoint at /health/deep"""
+    return await admin_health_deep(db=db)
 
 # Logging initialization
 log("INFO", "Edilcos Automation Backend started", module="main")
