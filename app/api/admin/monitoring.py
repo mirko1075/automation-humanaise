@@ -14,7 +14,23 @@ This module must not write to the DB. Queries use AsyncSession from
 `app.db.session.get_async_session` and read tables: RawEvent, ReceivedEmail,
 ErrorLog, AuditLog.
 
+# TODO(monitoring): expose a minimal operational overview endpoint (status, last event time, counters)
+# TODO(monitoring): track number of raw events received, processed, failed, and pending
+# TODO(monitoring): track last successful processing timestamp per source (email, webhook, api)
 # TODO(console): build minimal admin UI consuming these endpoints
+
+# Operational TODOs (added by automation):
+# TODO(monitoring): detect stalled raw events (processed = false for too long)
+# TODO(alerting): raise CRITICAL alert when stalled events exceed threshold
+# TODO(alerting): raise WARNING alert when processing backlog grows abnormally
+# TODO(observability): persist normalization and dispatch failures with reason codes
+# TODO(observability): distinguish retryable vs non-retryable failures
+# TODO(observability): correlate raw_event_id across webhook → normalizer → dispatcher
+# TODO(ops): add admin endpoint to manually reprocess a stalled raw_event
+# TODO(ops): add admin endpoint to mark raw_event as ignored/skipped
+# TODO(console): show live status of active modules and flows
+# TODO(monitoring): add per-tenant metrics and thresholds (future)
+# TODO(alerting): allow alert thresholds to be configured via env or DB
 """
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -51,6 +67,7 @@ async def overview(db: AsyncSession = Depends(get_async_session)) -> Any:
     since_24h = now - timedelta(hours=24)
 
     # Counters in last 24h
+    # TODO(monitoring): track number of raw events received, processed, failed, and pending
     raw_received_q = select(func.count()).select_from(models.RawEvent).where(models.RawEvent.created_at >= since_24h)
     raw_processed_q = select(func.count()).select_from(models.RawEvent).where(
         and_(models.RawEvent.created_at >= since_24h, models.RawEvent.processed == True)
@@ -66,6 +83,7 @@ async def overview(db: AsyncSession = Depends(get_async_session)) -> Any:
     error_logs_q = select(func.count()).select_from(models.ErrorLog).where(models.ErrorLog.created_at >= since_24h)
 
     # last event per source (at least gmail)
+    # TODO(monitoring): track last successful processing timestamp per source (email, webhook, api)
     last_gmail_q = select(func.max(models.RawEvent.created_at)).where(models.RawEvent.source == 'gmail')
 
     try:
@@ -93,12 +111,15 @@ async def overview(db: AsyncSession = Depends(get_async_session)) -> Any:
     total_errors = (raw_errors_recev or 0) + (error_logs_count or 0)
 
     # Very small rule for status aggregation
+    # TODO(alerting): classify alerts by severity (INFO, WARNING, CRITICAL)
     status = "ok"
     if total_errors > 0 or raw_pending > 100:
         status = "warning"
     if raw_pending > 1000 or total_errors > 100:
         status = "critical"
     # Emit notifications if any alerts found
+    # TODO(alerting): add alert deduplication window to avoid repeated notifications
+    # TODO(alerting): support multiple alert channels (slack, email, webhook) via config
     if alerts:
         messages = [f"[{a['level']}] {a['reason']}" for a in alerts]
         body = "\n".join(messages)
