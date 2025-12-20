@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Edilcos Automation Backend",
-    "version": "1.0.0",
+    "version": "1.3.7",
      "description": "Edilcos Automation Backend API. Note: OneDrive endpoints use server-side OAuth app-only; clients do not supply tokens.",
   },
   "servers": [
@@ -202,6 +202,48 @@
       }
     },
     "/auth/google/callback": {
+    ,
+    "/gmail/webhook": {
+      "post": {
+        "summary": "Gmail Pub/Sub webhook (ingest-only)",
+        "operationId": "gmailPubSubWebhook",
+        "description": "Accepts Gmail Pub/Sub push messages. This endpoint is ingest-only: it decodes the base64 `message.data` payload and persists a `RawEvent`. The endpoint ACKs (HTTP 200) immediately and does not call Gmail APIs.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "object",
+                    "properties": {
+                      "data": { "type": "string", "description": "base64-encoded JSON with historyId, emailAddress, messageId" },
+                      "messageId": { "type": "string" },
+                      "publishTime": { "type": "string", "format": "date-time" }
+                    }
+                  },
+                  "subscription": { "type": "string" }
+                }
+              },
+              "example": {
+                "message": {
+                  "data": "eyJoaXN0b3J5SWQiOiAiMTIzNDU3IiwgImVtYWlsQWRkcmVzcyI6ICJ0ZXN0QGV4YW1wbGUuY29tIiwgIm1lc3NhZ2VJZCI6ICJtc2ctdGVzdC1mbG93LTAwMSJ9",
+                  "messageId": "pub-sub-msg-124",
+                  "publishTime": "2025-12-13T10:00:00.000Z"
+                },
+                "subscription": "projects/myproject/subscriptions/mysubscription"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": { "description": "Accepted (ACK)" },
+          "400": { "description": "Bad request" },
+          "500": { "description": "Server error" }
+        }
+      }
+    }
       "get": {
         "summary": "Google OAuth callback",
         "operationId": "googleCallback",

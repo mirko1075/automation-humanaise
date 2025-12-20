@@ -4,6 +4,8 @@
 ### Changed
 
 - Gmail webhook now acts as ingest-only: it strictly parses the Pub/Sub push envelope, base64-decodes `message.data` and extracts `historyId` and `emailAddress`. It persists a `RawEvent` with these references and returns HTTP 200 immediately. The webhook does NOT call Gmail APIs or fetch message contents — all Gmail API interactions are performed later in the normalizer/worker pipeline. Rationale: fast ACK, resilience, and correct retry semantics.
+ - Tests: Reworked `tests/conftest.py` cleanup fixture to avoid pytest-asyncio deprecation warnings and to reliably dispose DB engines and cancel leftover asyncio tasks between tests. This improves full-suite determinism and prevents `asyncpg` connection concurrency errors in CI.
+ - Docs: Added `/gmail/webhook` POST operation to `openapi.json` (v1.3.7) and ensured Postman collections include an example Pub/Sub push payload. The OpenAPI entry documents the ingest-only behavior and the expected Pub/Sub envelope.
 
 ## v1.3.6 — Preventivi: OneDrive/Excel sync integration (2025-12-20)
 
