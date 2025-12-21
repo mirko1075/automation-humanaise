@@ -1,20 +1,16 @@
-"""
-app/core/normalizer/service.py
+"""Normalization service: read a RawEvent, classify and enrich it, persist a
+NormalizedEvent, then dispatch and route it to business flows.
 
-Normalizer V1 orchestration: parse -> classify -> dispatch -> mark RawEvent processed
-
-This module performs no business logic; it only orchestrates existing components
-and ensures transactional integrity and idempotency.
+This module provides a single coroutine `normalize_raw_event(raw_event_id)`
+which is used by the ingestion pipeline and tests.
 """
-# TODO(observability): add structured trace for per-event decisions (classification reason)
-# TODO(replay): admin endpoint to re-run normalizer for RawEvent id (see admin APIs)
-# TODO(alerting): alert if normalizer fails >3 times for same RawEvent
-# TODO(v2): persist classification outcome on RawEvent for auditing
+
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+import time
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select, update
@@ -26,12 +22,23 @@ from app.integrations.gmail_api import fetch_message as fetch_gmail_message
 from app.core.dispatcher import dispatch
 from app.monitoring.logger import log as app_log
 from app.core.normalizer import llm_service
-import time
-from app.monitoring.audit import audit_event as audit_event_fn
+
 
 
 class NormalizedEventDTO:
-    def __init__(self, *, id: UUID, tenant_id: UUID, flow_id: str, outcome: str, reason: str, normalized_data: dict, raw_event_id: UUID):
+    """Small DTO returned by normalize_raw_event for downstream routing/tests."""
+
+    def __init__(
+        self,
+        *,
+        id: UUID,
+        tenant_id: UUID,
+        flow_id: str,
+        outcome: Optional[str],
+        reason: Optional[str],
+        normalized_data: dict,
+        raw_event_id: UUID,
+    ) -> None:
         self.id = id
         self.tenant_id = tenant_id
         self.flow_id = flow_id
@@ -42,122 +49,110 @@ class NormalizedEventDTO:
 
 
 async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO]:
-    """Normalize a RawEvent by id.
+    """Normalize a RawEvent and return a DTO on success.
 
-    Steps:
-      - open one async session
-      - load RawEvent; exit if missing or already processed
-      - parse payload using existing `parse_email` helper (assumed present in payload)
-      - classify(email_data, tenant_id, db)
-      - build normalized DTO
-      - call dispatch(dto, db) (does not commit)
-      - mark RawEvent processed and insert a NormalizedEvent row
-      - commit transaction
-
-    Returns NormalizedEventDTO on success, None if raw event not found or already processed.
+    The function runs a DB transaction to create the NormalizedEvent and mark
+    the RawEvent as processed. It handles concurrent-insert IntegrityError by
+    reading the existing normalized event.
     """
-    # TODO(logging): aggiungere duration_ms a tutti gli step
-    # TODO(logging): salvare timeline completa in AuditLog
-    result_dto: Optional[NormalizedEventDTO] = None
     start_ts = time.monotonic()
+    result_dto: Optional[NormalizedEventDTO] = None
+
+    app_log("INFO", "normalizer.start", component="normalizer", raw_event_id=str(raw_event_id))
     try:
-        # Log normalizer start
-        app_log("INFO", "normalizer.start", component="normalizer", raw_event_id=str(raw_event_id))
-        try:
-            await audit_event_fn("normalizer.start", None, None, {"raw_event_id": str(raw_event_id)})
-        except Exception:
-            pass
+        await audit_event_fn("normalizer.start", None, None, {"raw_event_id": str(raw_event_id)})
+    except Exception:
+        pass
+
     try:
         async with SessionLocal() as db:
             async with db.begin():
-                # Load RawEvent
+                # Try to load the RawEvent. Some DB backends store UUIDs as text
+                # so attempt a cast fallback if direct lookup fails.
                 res = await db.execute(select(RawEvent).where(RawEvent.id == raw_event_id))
                 raw = res.scalar_one_or_none()
-                # Some test DB backends (sqlite) may store UUIDs as text; if not
-                # found by UUID object, try string comparison as a fallback.
                 if raw is None:
-                    # Fallback: some DB backends (sqlite) store UUIDs as text.
-                    # Try casting the id column to string for comparison.
                     try:
                         from sqlalchemy import cast, String as _String
 
-                        res2 = await db.execute(select(RawEvent).where(cast(RawEvent.id, _String) == str(raw_event_id)))
+                        res2 = await db.execute(
+                            select(RawEvent).where(cast(RawEvent.id, _String) == str(raw_event_id))
+                        )
                         raw = res2.scalar_one_or_none()
                     except Exception:
-                        # Last-ditch fallback: match id against string directly
                         res2 = await db.execute(select(RawEvent).where(RawEvent.id == str(raw_event_id)))
                         raw = res2.scalar_one_or_none()
+
                 if raw is None:
                     return None
                 if getattr(raw, "processed", False):
                     return None
 
-                # parse_email expected to be part of ingestion pipeline; here assume payload contains parsed email
                 payload = getattr(raw, "payload", {}) or {}
-                # defensively get email_data from payload or expect a nested 'parsed' key
                 email_data = payload.get("parsed") if isinstance(payload.get("parsed"), dict) else payload
 
-                # If email_data doesn't contain parsed message fields, attempt
-                # to fetch the full message via Gmail API (tests patch this
-                # function to return a fake MIME dict). Prefer using the
-                # lightweight LLM classifier if available (tests patch it),
-                # otherwise fall back to deterministic classifier.classify.
-                if not isinstance(email_data, dict) or not (email_data.get("subject") or email_data.get("text_plain") or email_data.get("from_email") or email_data.get("from_name")):
-                    # Try to fetch full message using messageId if present in payload
-                    msg_id = payload.get("messageId") or payload.get("message_id") or payload.get("messageId")
+                # If payload is minimal, attempt to fetch full message by id
+                if not isinstance(email_data, dict) or not (
+                    email_data.get("subject") or email_data.get("text_plain") or email_data.get("from_email") or email_data.get("from_name")
+                ):
+                    msg_id = payload.get("messageId") or payload.get("message_id")
                     if msg_id:
                         try:
                             fetched = await fetch_gmail_message(msg_id)
                             if isinstance(fetched, dict):
                                 email_data = fetched
                         except Exception:
-                            # If fetch fails, continue with existing minimal payload
                             pass
 
+                # Prefer LLM-based classification when available, fall back to rule-based
                 try:
                     classification = await llm_service.classify_event(email_data)
-                    # llm_service.classify_event may return a simple label string
                     if isinstance(classification, str):
                         classification = {"outcome": classification, "reason": "llm"}
                 except Exception:
                     classification = await classify(email_data, raw.tenant_id, db)
 
-                outcome = classification.get("outcome")
-                reason = classification.get("reason")
+                outcome = classification.get("outcome") if isinstance(classification, dict) else None
+                reason = classification.get("reason") if isinstance(classification, dict) else None
 
-                # Build normalized event record and DTO
-                # Extract entities (LLM or rule-based extractor) to enrich normalized payload
                 try:
                     entities = await llm_service.extract_entities(email_data)
                 except Exception:
                     entities = None
 
-                normalized_values = {
+                normalized_payload = {
                     "tenant_id": raw.tenant_id,
                     "flow_id": raw.flow_id or "preventivi_v1",
                     "event_type": "email.received",
                     "normalized_data": {
-                            "source": "email",
-                            "classification": classification,
-                            "email": email_data,
-                            "entities": entities,
-                            "customer": {
-                                "email": (entities.get("email") if isinstance(entities, dict) and entities.get("email") else email_data.get("from_email")),
-                                "name": (entities.get("nome") or entities.get("name") if isinstance(entities, dict) else None) or email_data.get("from_name") or "",
-                                "phone": (entities.get("telefono") or entities.get("phone") if isinstance(entities, dict) else None),
-                            },
-                            "quote": {},
+                        "source": "email",
+                        "classification": classification,
+                        "email": email_data,
+                        "entities": entities,
+                        "customer": {
+                            "email": (
+                                entities.get("email") if isinstance(entities, dict) and entities.get("email") else email_data.get("from_email")
+                            ),
+                            "name": (
+                                (entities.get("nome") or entities.get("name") if isinstance(entities, dict) else None)
+                                or email_data.get("from_name")
+                                or ""
+                            ),
+                            "phone": (
+                                (entities.get("telefono") or entities.get("phone") if isinstance(entities, dict) else None)
+                            ),
                         },
+                        "quote": {},
+                    },
                     "status": "processed",
                 }
 
-                # Create a NormalizedEvent ORM object and flush to obtain PK
                 norm = NormalizedEventModel(
-                    tenant_id=normalized_values["tenant_id"],
-                    flow_id=normalized_values["flow_id"],
-                    event_type=normalized_values["event_type"],
-                    normalized_data=normalized_values["normalized_data"],
-                    status=normalized_values["status"],
+                    tenant_id=normalized_payload["tenant_id"],
+                    flow_id=normalized_payload["flow_id"],
+                    event_type=normalized_payload["event_type"],
+                    normalized_data=normalized_payload["normalized_data"],
+                    status=normalized_payload["status"],
                 )
                 db.add(norm)
                 await db.flush()
@@ -172,14 +167,11 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                     raw_event_id=raw.id,
                 )
 
-                # Dispatch side-effects (idempotency handled inside dispatcher)
-                # Instrumentation: log DTO details to help trace why Customers/Quotes
-                # are not created in some E2E tests. This log is lightweight and
-                # will include tenant/flow/outcome and the normalized_data keys.
                 try:
                     normalized_keys = list(dto.normalized_data.keys()) if isinstance(dto.normalized_data, dict) else None
                 except Exception:
                     normalized_keys = None
+
                 app_log(
                     "INFO",
                     "Dispatching normalized event",
@@ -193,64 +185,85 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
 
                 await dispatch(dto, db)
 
-                # Mark RawEvent processed
+                # Mark RawEvent processed inside same transaction
                 await db.execute(
-                    update(RawEvent)
-                    .where(RawEvent.id == raw_event_id)
-                    .values(processed=True, updated_at=datetime.utcnow())
+                    update(RawEvent).where(RawEvent.id == raw_event_id).values(processed=True, updated_at=datetime.utcnow())
                 )
 
-                # Do not invoke business flows inside the DB transaction to avoid
-                # visibility/isolation issues for newly committed rows. Capture
-                # the DTO here and route it after the transaction commits so
-                # downstream flows run in their own DB sessions.
                 result_dto = dto
-            # end transaction
+
     except Exception as exc:
-        # Transaction may be aborted; mark RawEvent as not-processed in a fresh session
-        async with SessionLocal() as db2:
-            async with db2.begin():
-                await db2.execute(
-                    update(RawEvent)
-                    .where(RawEvent.id == raw_event_id)
-                    .values(processed=False, updated_at=datetime.utcnow())
-                )
-        # Audit normalizer error
+        # Handle concurrent insert race: return existing normalized event if present
+        if isinstance(exc, IntegrityError):
+            app_log(
+                "WARNING",
+                "IntegrityError inserting NormalizedEvent; possible duplicate due to concurrent normalizer runs",
+                component="normalizer",
+                raw_event_id=str(raw_event_id),
+            )
+            async with SessionLocal() as db2:
+                res_dup = await db2.execute(select(NormalizedEventModel).where(NormalizedEventModel.raw_event_id == raw_event_id))
+                existing_norm = res_dup.scalar_one_or_none()
+                if existing_norm:
+                    result_dto = NormalizedEventDTO(
+                        id=existing_norm.id,
+                        tenant_id=existing_norm.tenant_id,
+                        flow_id=existing_norm.flow_id,
+                        outcome=getattr(existing_norm, "outcome", "unknown"),
+                        reason="duplicate_due_to_concurrency",
+                        normalized_data=existing_norm.normalized_data,
+                        raw_event_id=raw_event_id,
+                    )
+                else:
+                    raise
+        else:
+            # Mark raw as not processed in a fresh session to allow retry
+            async with SessionLocal() as db2:
+                async with db2.begin():
+                    await db2.execute(
+                        update(RawEvent).where(RawEvent.id == raw_event_id).values(processed=False, updated_at=datetime.utcnow())
+                    )
+
         try:
             duration_ms = int((time.monotonic() - start_ts) * 1000)
             try:
-                await audit_event_fn("normalizer.error", None, None, {"raw_event_id": str(raw_event_id), "error": str(exc), "duration_ms": duration_ms})
+                await audit_event_fn(
+                    "normalizer.error",
+                    None,
+                    None,
+                    {"raw_event_id": str(raw_event_id), "error": str(exc), "duration_ms": duration_ms},
+                )
             except Exception:
                 pass
         except Exception:
             pass
         raise
 
-    # At this point the transaction committed successfully. Route the
-    # normalized event to the business flow so it can perform higher-level
-    # processing (PreventiviV1 will enqueue WhatsApp notifications). We run
-    # routing in the same coroutine but outside the DB transaction so the
-    # business flow uses its own DB sessions.
+    # Route normalized event outside transaction so business flows use fresh DB sessions
     try:
         from app.core.router import route_normalized_event
+
         if result_dto is not None:
             await route_normalized_event(result_dto.id)
     except Exception:
-        # Routing failures should not crash the normalizer; log and continue.
         try:
             app_log("ERROR", "Failed to route normalized event", component="normalizer", raw_event_id=str(raw_event_id))
         except Exception:
             pass
-    # Audit normalizer done (post-routing)
+
     try:
         duration_ms = int((time.monotonic() - start_ts) * 1000)
         try:
-            await audit_event_fn("normalizer.done", None, None, {"raw_event_id": str(raw_event_id), "normalized_id": str(result_dto.id) if result_dto else None, "duration_ms": duration_ms})
+            await audit_event_fn(
+                "normalizer.done",
+                None,
+                None,
+                {"raw_event_id": str(raw_event_id), "normalized_id": str(result_dto.id) if result_dto else None, "duration_ms": duration_ms},
+            )
         except Exception:
             pass
         app_log("INFO", "normalizer.done", component="normalizer", raw_event_id=str(raw_event_id), duration_ms=duration_ms)
     except Exception:
         pass
 
-    # Return the DTO for the caller (tests expect the normalized DTO on success)
     return result_dto

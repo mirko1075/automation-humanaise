@@ -30,6 +30,20 @@ handler = logging.StreamHandler()
 handler.setFormatter(JsonFormatter())
 logger.handlers = [handler]
 
+# Add a plain-text console handler for human-friendly logs without removing JSON
+class PlainFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        timestamp = datetime.now(timezone.utc).isoformat()
+        # Keep messages short and imperative for human readability
+        return f"{timestamp} {record.levelname}: {record.getMessage()}"
+
+# Second handler writes short human-readable lines. Keep it optional in future.
+plain_handler = logging.StreamHandler()
+plain_handler.setFormatter(PlainFormatter())
+# Do not add plain_handler by default to avoid double output in some environments.
+# TODO(logging): make console logs optional via env flag
+
+
 # Keys reserved by LogRecord that must not be passed in `extra`
 _LOGRECORD_RESERVED = set(vars(logging.LogRecord("n", 0, "", 0, "", (), None)).keys())
 
@@ -54,7 +68,28 @@ def log(level: str, message: str, component: str = None, request_id: str = None,
         "component": component,
         **{k: v for k, v in kwargs.items() if k not in _LOGRECORD_RESERVED}
     }
+    # Structured JSON log
     logger.log(getattr(logging, level.upper(), logging.INFO), message, extra=extra)
+
+
+def console_info(message: str):
+    """Emit a short human-readable INFO line to console.
+
+    This does not replace structured JSON logs; it's an additive convenience
+    for humans watching the console. TODO: correlate with request_id.
+    """
+    # Use plain handler temporarily to avoid changing global handlers list
+    try:
+        # Attach plain handler, emit, then detach to avoid duplicate outputs
+        logger.addHandler(plain_handler)
+        logger.info(message)
+    finally:
+        try:
+            logger.removeHandler(plain_handler)
+        except Exception:
+            pass
+
+# TODO(observability): correlate console logs with request_id
 
 # TODO(monitoring): expose metric raw_event_processing_latency_seconds histogram
 # TODO(monitoring): expose gauge in_flight_normalizations

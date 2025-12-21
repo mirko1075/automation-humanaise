@@ -50,6 +50,7 @@ from fastapi import APIRouter, Request, BackgroundTasks, Depends
 import time
 from fastapi.responses import JSONResponse
 from app.monitoring.logger import log
+from app.monitoring.logger import console_info
 from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.db.repositories.raw_event_repository import RawEventRepository
@@ -138,6 +139,8 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
         pass
 
     log("INFO", "webhook.received.start", module="gmail_webhook", request_id=str(request_id) if request_id is not None else None)
+    # Human-friendly console line
+    console_info("Webhook received")
     # Persist timeline entry for admin UI
     try:
         await audit_event("webhook.received.start", None, None, {"request_id": str(request_id) if request_id is not None else None, "note": "ingress start"})
@@ -165,6 +168,7 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
         # WEBHOOK PARSE START
         parse_start = time.monotonic()
         log("INFO", "webhook.parse.start", module="gmail_webhook", request_id=str(request_id) if request_id is not None else None)
+        console_info("Parsing Gmail payload")
         try:
             await audit_event("webhook.parse.start", None, None, {"request_id": str(request_id) if request_id is not None else None})
         except Exception:
@@ -206,6 +210,7 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
         try:
             parse_duration_ms = int((time.monotonic() - parse_start) * 1000)
             log("INFO", "webhook.parse.done", module="gmail_webhook", request_id=str(request_id) if request_id is not None else None, duration_ms=parse_duration_ms)
+            console_info("Gmail payload parsed")
             try:
                 await audit_event("webhook.parse.done", None, None, {"duration_ms": parse_duration_ms, "request_id": str(request_id) if request_id is not None else None})
             except Exception:
@@ -332,6 +337,7 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
             return JSONResponse(status_code=500, content={"error": "Internal Server Error", "request_id": str(request_id) if request_id is not None else ""})
 
         log("INFO", f"RawEvent persisted id={ev_id} tenant_id={tenant_id}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "", tenant_id=tenant_id)
+        console_info("RawEvent saved")
         # WEBHOOK RECEIVED DONE
         try:
             webhook_duration_ms = int((time.monotonic() - flow_start) * 1000)

@@ -20,6 +20,7 @@ from typing import Optional, Dict
 from uuid import UUID
 import time
 from app.monitoring.logger import log as app_log
+from app.monitoring.logger import console_info
 from app.monitoring.audit import audit_event as audit_event_fn
 
 KEYWORDS = ["preventivo", "ristrutturazione", "lavori", "offerta"]
@@ -71,14 +72,18 @@ async def classify(email_data: Dict[str, str], tenant_id: Optional[UUID], db) ->
     """
     # TODO(logging): aggiungere duration_ms a tutti gli step
     start_ts = time.monotonic()
+    app_log("INFO", "classifier.start", tenant_id=str(tenant_id) if tenant_id else None)
+    # Human-friendly console line
     try:
-        app_log("INFO", "classifier.start", tenant_id=str(tenant_id) if tenant_id else None)
-        try:
-            await audit_event_fn("classifier.start", str(tenant_id) if tenant_id else None, None, {"note": "classification start"})
-        except Exception:
-            pass
+        console_info("Classification started")
+    except Exception:
+        pass
+    try:
+        await audit_event_fn("classifier.start", str(tenant_id) if tenant_id else None, None, {"note": "classification start"})
+    except Exception:
+        pass
 
-    # Normalize inputs safely
+# Normalize inputs safely
     from_email = _normalize_text(email_data.get("from_email"))
     subject = _normalize_text(email_data.get("subject"))
     body = _normalize_text(email_data.get("body_text") or email_data.get("body_html"))
@@ -109,13 +114,14 @@ async def classify(email_data: Dict[str, str], tenant_id: Optional[UUID], db) ->
 
     # Rule 4: fallback
     result = {"outcome": "unassigned", "reason": "no_match"}
+    duration_ms = int((time.monotonic() - start_ts) * 1000)
     try:
-        duration_ms = int((time.monotonic() - start_ts) * 1000)
-        try:
-            await audit_event_fn("classifier.done", str(tenant_id) if tenant_id else None, None, {"outcome": result["outcome"], "reason": result["reason"], "duration_ms": duration_ms})
-        except Exception:
-            pass
-        app_log("INFO", "classifier.done", tenant_id=str(tenant_id) if tenant_id else None, outcome=result["outcome"], duration_ms=duration_ms)
+        await audit_event_fn("classifier.done", str(tenant_id) if tenant_id else None, None, {"outcome": result["outcome"], "reason": result["reason"], "duration_ms": duration_ms})
+    except Exception:
+        pass
+    app_log("INFO", "classifier.done", tenant_id=str(tenant_id) if tenant_id else None, outcome=result["outcome"], duration_ms=duration_ms)
+    try:
+        console_info(f"Classified as {result['outcome']}")
     except Exception:
         pass
     return result

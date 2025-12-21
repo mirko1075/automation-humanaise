@@ -180,20 +180,19 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
             return
 
         # 5) Upload back
+        try:
+            await client.upload_file(tmp.name, remote_path)
             try:
-                await client.upload_file(tmp.name, remote_path)
-                try:
-                    duration_ms = int((time.monotonic() - start_ts) * 1000)
-                    await audit_event("excel_update_success", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "duration_ms": duration_ms})
-                except Exception:
-                    pass
-                log("INFO", f"Excel file {remote_path} updated for preventivo {getattr(preventivo, 'id', None)}", module="excel_writer", tenant_id=str(tenant_id))
-            except Exception:
-            # Do not remove the tmp file on failure so tests can inspect it; in production a periodic cleaner can remove old tmp files
-            try:
-                os.remove(tmp.name)
+                duration_ms = int((time.monotonic() - start_ts) * 1000)
+                await audit_event("excel_update_success", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "duration_ms": duration_ms})
             except Exception:
                 pass
+            log("INFO", f"Excel file {remote_path} updated for preventivo {getattr(preventivo, 'id', None)}", module="excel_writer", tenant_id=str(tenant_id))
+            # Keep temporary file on success so tests can inspect it.
+            # Production may remove temp files via a cleaner; do not delete here.
+        except Exception:
+            # Do not remove the tmp file on failure so tests can inspect it; in production a periodic cleaner can remove old tmp files
+            pass
 
     except Exception as exc:
         tb = traceback.format_exc()

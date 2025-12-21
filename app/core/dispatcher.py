@@ -26,6 +26,7 @@ from typing import Any
 from sqlalchemy import select
 from app.db.models import Customer, Quote, ReceivedEmail
 from app.monitoring.logger import log as app_log
+from app.monitoring.logger import console_info
 import time
 from app.monitoring.audit import audit_event as audit_event_fn
 
@@ -60,6 +61,10 @@ async def dispatch(event: Any, db) -> None:
     start_ts = time.monotonic()
     app_log("INFO", "dispatcher.start", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, flow_id=flow_id, raw_event_id=str(raw_event_id) if raw_event_id else None, outcome=outcome, normalized_keys=nd_keys)
     try:
+        console_info("Dispatcher started")
+    except Exception:
+        pass
+    try:
         await audit_event_fn("dispatcher.start", tenant_id, flow_id, {"raw_event_id": str(raw_event_id) if raw_event_id else None})
     except Exception:
         pass
@@ -68,6 +73,10 @@ async def dispatch(event: Any, db) -> None:
         try:
             duration_ms = int((time.monotonic() - start_ts) * 1000)
             app_log("INFO", "dispatcher.skipped", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, raw_event_id=str(raw_event_id) if raw_event_id else None, duration_ms=duration_ms)
+            try:
+                console_info("Dispatcher skipped")
+            except Exception:
+                pass
             try:
                 await audit_event_fn("dispatcher.skipped", tenant_id, flow_id, {"raw_event_id": str(raw_event_id) if raw_event_id else None, "duration_ms": duration_ms, "reason": "ignored_or_unassigned"})
             except Exception:
@@ -85,6 +94,10 @@ async def dispatch(event: Any, db) -> None:
             try:
                 duration_ms = int((time.monotonic() - start_ts) * 1000)
                 app_log("INFO", "dispatcher.noop", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, raw_event_id=str(raw_event_id), duration_ms=duration_ms)
+                try:
+                    console_info("Dispatcher no-op (idempotent)")
+                except Exception:
+                    pass
                 try:
                     await audit_event_fn("dispatcher.skipped", tenant_id, flow_id, {"raw_event_id": str(raw_event_id), "reason": "idempotent", "duration_ms": duration_ms})
                 except Exception:
@@ -157,6 +170,10 @@ async def dispatch(event: Any, db) -> None:
                 try:
                     await db.flush()
                     app_log("INFO", "Customer created by email", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, customer_id=str(customer_id), email=cust_email)
+                    try:
+                        console_info("Customer created")
+                    except Exception:
+                        pass
                 except Exception:
                     app_log("ERROR", "failed_flush_after_customer_insert", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id)
                 # Diagnostic: count customers for tenant to ensure visibility in same transaction
@@ -223,6 +240,10 @@ async def dispatch(event: Any, db) -> None:
         try:
             await db.flush()
             app_log("INFO", "Quote inserted", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, quote_id=str(quote_id), customer_id=str(customer_id))
+            try:
+                console_info("Quote created")
+            except Exception:
+                pass
         except Exception:
             app_log("ERROR", "failed_flush_after_quote_insert", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id)
         # Diagnostic: count quotes for tenant to ensure visibility in same transaction
@@ -240,6 +261,10 @@ async def dispatch(event: Any, db) -> None:
                 received_values["identifier"] = customer_info.get("email") or customer_info.get("phone")
         await db.execute(ReceivedEmail.__table__.insert().values(**received_values))
         app_log("INFO", "ReceivedEmail inserted", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, external_ref=received_values.get("external_ref"))
+        try:
+            console_info("ReceivedEmail logged")
+        except Exception:
+            pass
 
         try:
             duration_ms = int((time.monotonic() - start_ts) * 1000)
@@ -248,6 +273,10 @@ async def dispatch(event: Any, db) -> None:
             except Exception:
                 pass
             app_log("INFO", "dispatch.completed", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, quote_id=str(quote_id), duration_ms=duration_ms)
+            try:
+                console_info("Dispatcher executed")
+            except Exception:
+                pass
         except Exception:
             pass
         return
