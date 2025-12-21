@@ -75,7 +75,14 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
         downloaded = False
         try:
             await client.download_file(remote_path, tmp.name)
-            downloaded = True
+            # If the download produced an empty file (zero bytes) treat as not downloaded
+            try:
+                if os.path.getsize(tmp.name) == 0:
+                    downloaded = False
+                else:
+                    downloaded = True
+            except Exception:
+                downloaded = True
         except Exception:
             # If download fails, we'll create a new workbook
             log("INFO", f"Could not download {remote_path}, will create new workbook", module="excel_writer", tenant_id=str(tenant_id))
@@ -114,6 +121,13 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
                 ws.cell(row=r, column=7, value=getattr(preventivo, "status", ""))
                 ws.cell(row=r, column=9, value=now_iso)
             else:
+                # Ensure created_at is serialized to ISO string (openpyxl doesn't like tz-aware datetimes)
+                created_val = getattr(preventivo, "created_at", None)
+                if isinstance(created_val, datetime):
+                    created_val = created_val.isoformat()
+                elif created_val is None:
+                    created_val = now_iso
+
                 values = [
                     pid,
                     str(tenant_id),
@@ -122,7 +136,7 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
                     getattr(customer, "phone", ""),
                     (getattr(preventivo, "quote_data", {}) or {}).get("descrizione_lavori", ""),
                     getattr(preventivo, "status", ""),
-                    getattr(preventivo, "created_at", now_iso) if not isinstance(getattr(preventivo, "created_at", now_iso), str) else getattr(preventivo, "created_at", now_iso),
+                    created_val,
                     now_iso,
                 ]
                 ws.append(values)
@@ -154,7 +168,8 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
             await client.upload_file(tmp.name, remote_path)
             await audit_event("excel_update_success", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None))})
             log("INFO", f"Excel file {remote_path} updated for preventivo {getattr(preventivo, 'id', None)}", module="excel_writer", tenant_id=str(tenant_id))
-        finally:
+        except Exception:
+            # Do not remove the tmp file on failure so tests can inspect it; in production a periodic cleaner can remove old tmp files
             try:
                 os.remove(tmp.name)
             except Exception:
