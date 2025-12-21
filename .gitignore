@@ -12,3 +12,5 @@ client_secret_*.json
 .test_sqlite.db
 .test_integration_sqlite.db
 google_oauth.json
+uvicorn.pid
+server.log
