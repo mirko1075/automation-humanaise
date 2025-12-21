@@ -10,8 +10,9 @@ This module is read-only and intended for operator observability. It does
 not alter business state.
 """
 from typing import Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_async_session
@@ -64,6 +65,74 @@ async def list_timeline(
     except Exception as exc:
         log("ERROR", "timeline.query_failed", error=str(exc))
         raise HTTPException(status_code=500, detail="Timeline query failed")
+
+
+
+@router.get("/timeline/search")
+async def search_timeline(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=1000),
+    from_ts: Optional[datetime] = Query(None, description="Start timestamp (inclusive) in ISO format"),
+    to_ts: Optional[datetime] = Query(None, description="End timestamp (inclusive) in ISO format"),
+    action: Optional[str] = Query(None, description="Filter by audit action"),
+    tenant_id: Optional[str] = Query(None, description="Filter by tenant_id"),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Paginated search over AuditLog with optional filters.
+
+    Filters supported: date range (`from_ts`, `to_ts`), `action`, `tenant_id`.
+    Returns items (list), total, page and per_page.
+    """
+    try:
+        stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
+        filters = []
+        if from_ts:
+            filters.append(AuditLog.created_at >= from_ts)
+        if to_ts:
+            filters.append(AuditLog.created_at <= to_ts)
+        if action:
+            filters.append(AuditLog.action == action)
+        if tenant_id:
+            filters.append(AuditLog.tenant_id == tenant_id)
+
+        if filters:
+            stmt = stmt.where(and_(*filters))
+
+        # total count
+        count_stmt = select(func.count()).select_from(AuditLog)
+        if filters:
+            count_stmt = count_stmt.where(and_(*filters))
+        count_res = await db.execute(count_stmt)
+        total = int(count_res.scalar() or 0)
+
+        offset = (page - 1) * per_page
+        stmt = stmt.offset(offset).limit(per_page)
+        res = await db.execute(stmt)
+        rows = res.scalars().all()
+
+        items = []
+        for r in rows:
+            items.append({
+                "id": str(r.id),
+                "action": r.action,
+                "tenant_id": str(r.tenant_id) if r.tenant_id else None,
+                "flow_id": r.flow_id,
+                "details": r.details,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            })
+
+        return {
+            "status": "success",
+            "data": {
+                "items": items,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+            },
+        }
+    except Exception as exc:
+        log("ERROR", "timeline.search_failed", error=str(exc))
+        raise HTTPException(status_code=500, detail="Timeline search failed")
 
 
 @router.get("/timeline/{audit_id}")

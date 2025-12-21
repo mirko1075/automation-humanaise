@@ -1,4 +1,15 @@
 # Changelog
+## v1.4.5 — Admin timeline search, OpenAPI & Postman updates (2025-12-21)
+
+### Added
+
+- `GET /admin/timeline/search` — paginated timeline search with filters `from_ts`, `to_ts`, `action`, `tenant_id` (admin read-only endpoint).
+- OpenAPI and Postman collection updated to include the new timeline search endpoint.
+
+### Changed
+
+- Bumped package version to `1.4.5`.
+
 ## v1.4.4 — Integrate ExcelWriter after DB commit (2025-12-21)
 
 ### Changed

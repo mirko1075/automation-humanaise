@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Edilcos Automation Backend",
-    "version": "1.4.4",
+    "version": "1.4.5",
      "description": "Edilcos Automation Backend API. Note: OneDrive endpoints use server-side OAuth app-only; clients do not supply tokens.",
   },
   "servers": [
@@ -219,6 +219,25 @@
               }
             }
           }
+        }
+      }
+    },
+    "/admin/timeline/search": {
+      "get": {
+        "summary": "Search audit timeline (paginated)",
+        "operationId": "searchAuditTimeline",
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}},
+          {"name": "per_page", "in": "query", "schema": {"type": "integer", "default": 50}},
+          {"name": "from_ts", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "Start timestamp (inclusive)"},
+          {"name": "to_ts", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "End timestamp (inclusive)"},
+          {"name": "action", "in": "query", "schema": {"type": "string"}, "description": "Filter by audit action"},
+          {"name": "tenant_id", "in": "query", "schema": {"type": "string"}, "description": "Filter by tenant id"}
+        ],
+        "responses": {
+          "200": {"description": "Paginated audit timeline"},
+          "400": {"description": "Invalid request"},
+          "500": {"description": "Server error"}
         }
       }
     },

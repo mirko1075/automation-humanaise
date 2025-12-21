@@ -24,6 +24,7 @@ import traceback
 from app.monitoring.logger import log
 from app.monitoring.audit import audit_event
 from app.integrations.onedrive_client import OneDriveClient
+import time
 
 
 DEFAULT_CONFLICT_SECONDS = 10
@@ -49,6 +50,13 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
     client = OneDriveClient()
     remote_path = "commesse.xlsx"
 
+    start_ts = time.monotonic()
+    # TODO(logging): aggiungere duration_ms a tutti gli step
+    try:
+        await audit_event("onedevive.excel.start", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None))})
+    except Exception:
+        pass
+
     try:
         # 1) Fetch metadata to check last modified
         try:
@@ -66,7 +74,15 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
                 delta = (now - last_mod).total_seconds()
                 if delta < conflict_seconds:
                     log("WARNING", f"Excel file {remote_path} modified {delta:.1f}s ago (<{conflict_seconds}s). Aborting update.", module="excel_writer", tenant_id=str(tenant_id))
-                    await audit_event("excel_update_skipped_recent_modify", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "delta_seconds": delta})
+                    try:
+                        await audit_event("excel_update_skipped_recent_modify", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "delta_seconds": delta})
+                    except Exception:
+                        pass
+                    try:
+                        duration_ms = int((time.monotonic() - start_ts) * 1000)
+                        await audit_event("onedevive.excel.aborted", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "reason": "recent_modify", "duration_ms": duration_ms})
+                    except Exception:
+                        pass
                     return
 
         # 2) Download file to temp
@@ -164,11 +180,15 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
             return
 
         # 5) Upload back
-        try:
-            await client.upload_file(tmp.name, remote_path)
-            await audit_event("excel_update_success", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None))})
-            log("INFO", f"Excel file {remote_path} updated for preventivo {getattr(preventivo, 'id', None)}", module="excel_writer", tenant_id=str(tenant_id))
-        except Exception:
+            try:
+                await client.upload_file(tmp.name, remote_path)
+                try:
+                    duration_ms = int((time.monotonic() - start_ts) * 1000)
+                    await audit_event("excel_update_success", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "duration_ms": duration_ms})
+                except Exception:
+                    pass
+                log("INFO", f"Excel file {remote_path} updated for preventivo {getattr(preventivo, 'id', None)}", module="excel_writer", tenant_id=str(tenant_id))
+            except Exception:
             # Do not remove the tmp file on failure so tests can inspect it; in production a periodic cleaner can remove old tmp files
             try:
                 os.remove(tmp.name)
@@ -179,7 +199,11 @@ async def upsert_preventivo_row(preventivo: Any, customer: Any, tenant: Any, con
         tb = traceback.format_exc()
         log("ERROR", f"Excel writer failure: {exc}", module="excel_writer", tenant_id=str(tenant_id))
         try:
-            await audit_event("excel_update_error", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "error": str(exc), "traceback": tb})
+            duration_ms = int((time.monotonic() - start_ts) * 1000)
+        except Exception:
+            duration_ms = None
+        try:
+            await audit_event("excel_update_error", str(tenant_id), None, {"preventivo_id": str(getattr(preventivo, "id", None)), "error": str(exc), "traceback": tb, "duration_ms": duration_ms})
         except Exception:
             pass
         # TODO(retry): implement retry/backoff on transient OneDrive errors

@@ -26,6 +26,8 @@ from app.integrations.gmail_api import fetch_message as fetch_gmail_message
 from app.core.dispatcher import dispatch
 from app.monitoring.logger import log as app_log
 from app.core.normalizer import llm_service
+import time
+from app.monitoring.audit import audit_event as audit_event_fn
 
 
 class NormalizedEventDTO:
@@ -54,7 +56,17 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
 
     Returns NormalizedEventDTO on success, None if raw event not found or already processed.
     """
+    # TODO(logging): aggiungere duration_ms a tutti gli step
+    # TODO(logging): salvare timeline completa in AuditLog
     result_dto: Optional[NormalizedEventDTO] = None
+    start_ts = time.monotonic()
+    try:
+        # Log normalizer start
+        app_log("INFO", "normalizer.start", component="normalizer", raw_event_id=str(raw_event_id))
+        try:
+            await audit_event_fn("normalizer.start", None, None, {"raw_event_id": str(raw_event_id)})
+        except Exception:
+            pass
     try:
         async with SessionLocal() as db:
             async with db.begin():
@@ -194,7 +206,7 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                 # downstream flows run in their own DB sessions.
                 result_dto = dto
             # end transaction
-    except Exception:
+    except Exception as exc:
         # Transaction may be aborted; mark RawEvent as not-processed in a fresh session
         async with SessionLocal() as db2:
             async with db2.begin():
@@ -203,6 +215,15 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                     .where(RawEvent.id == raw_event_id)
                     .values(processed=False, updated_at=datetime.utcnow())
                 )
+        # Audit normalizer error
+        try:
+            duration_ms = int((time.monotonic() - start_ts) * 1000)
+            try:
+                await audit_event_fn("normalizer.error", None, None, {"raw_event_id": str(raw_event_id), "error": str(exc), "duration_ms": duration_ms})
+            except Exception:
+                pass
+        except Exception:
+            pass
         raise
 
     # At this point the transaction committed successfully. Route the
@@ -220,6 +241,16 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
             app_log("ERROR", "Failed to route normalized event", component="normalizer", raw_event_id=str(raw_event_id))
         except Exception:
             pass
+    # Audit normalizer done (post-routing)
+    try:
+        duration_ms = int((time.monotonic() - start_ts) * 1000)
+        try:
+            await audit_event_fn("normalizer.done", None, None, {"raw_event_id": str(raw_event_id), "normalized_id": str(result_dto.id) if result_dto else None, "duration_ms": duration_ms})
+        except Exception:
+            pass
+        app_log("INFO", "normalizer.done", component="normalizer", raw_event_id=str(raw_event_id), duration_ms=duration_ms)
+    except Exception:
+        pass
 
     # Return the DTO for the caller (tests expect the normalized DTO on success)
     return result_dto

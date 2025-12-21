@@ -47,6 +47,7 @@ Rationale: fast ACK, resilience, and correct retry semantics.
 # TODO(alerting): alert if RawEvent persistence fails repeatedly for a tenant
 # TODO(replay): store raw payload to durable object storage if persistence permanently fails
 from fastapi import APIRouter, Request, BackgroundTasks, Depends
+import time
 from fastapi.responses import JSONResponse
 from app.monitoring.logger import log
 from app.monitoring.audit import audit_event
@@ -128,6 +129,21 @@ async def get_tenant_id(email_address: str, db):
 @router.post("/webhook")
 async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
     request_id = getattr(request.state, "request_id", None)
+    # Flow-level start timestamp for end-to-end timing
+    flow_start = time.monotonic()
+    # Persist flow_start for downstream correlation
+    try:
+        request.state.flow_start = flow_start
+    except Exception:
+        pass
+
+    log("INFO", "webhook.received.start", module="gmail_webhook", request_id=str(request_id) if request_id is not None else None)
+    # Persist timeline entry for admin UI
+    try:
+        await audit_event("webhook.received.start", None, None, {"request_id": str(request_id) if request_id is not None else None, "note": "ingress start"})
+    except Exception:
+        # best-effort: do not fail ingest if audit write fails
+        pass
     log("INFO", "GMAIL WEBHOOK HIT", raw_body=request.body)
 
     try:
@@ -146,6 +162,14 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
         if not data_b64:
             log("WARNING", "Missing data in Pub/Sub envelope", module="gmail_webhook", request_id=str(request_id))
             return JSONResponse(status_code=400, content={"error": "Missing data", "request_id": request_id})
+        # WEBHOOK PARSE START
+        parse_start = time.monotonic()
+        log("INFO", "webhook.parse.start", module="gmail_webhook", request_id=str(request_id) if request_id is not None else None)
+        try:
+            await audit_event("webhook.parse.start", None, None, {"request_id": str(request_id) if request_id is not None else None})
+        except Exception:
+            pass
+
         decoded = base64.urlsafe_b64decode(data_b64 + "==")
         payload = None
         # Try to parse JSON from the decoded bytes using multiple fallbacks
@@ -178,6 +202,16 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
                             log("WARNING", "Gmail webhook payload could not be JSON-decoded; stored raw base64", module="gmail_webhook", request_id=str(request_id))
                         except Exception:
                             pass
+        # WEBHOOK PARSE DONE
+        try:
+            parse_duration_ms = int((time.monotonic() - parse_start) * 1000)
+            log("INFO", "webhook.parse.done", module="gmail_webhook", request_id=str(request_id) if request_id is not None else None, duration_ms=parse_duration_ms)
+            try:
+                await audit_event("webhook.parse.done", None, None, {"duration_ms": parse_duration_ms, "request_id": str(request_id) if request_id is not None else None})
+            except Exception:
+                pass
+        except Exception:
+            pass
         # Gmail Pub/Sub payload contains a reference, not full message content
         history_id = payload.get("historyId")
         email_address = payload.get("emailAddress")
@@ -281,6 +315,11 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
             if isinstance(exc, _IntegrityError) or any(isinstance(e, _IntegrityError) for e in getattr(exc, "__cause__", []) or []):
                 try:
                     log("INFO", f"Duplicate RawEvent idempotency_key={idempotency_key}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "")
+                    # Audit duplicate as skipped
+                    try:
+                        await audit_event("webhook.received.skipped", None, None, {"idempotency_key": str(idempotency_key) if idempotency_key else None, "request_id": str(request_id) if request_id is not None else None})
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 return JSONResponse(content={"status": "received", "request_id": str(request_id) if request_id is not None else ""})
@@ -293,6 +332,17 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
             return JSONResponse(status_code=500, content={"error": "Internal Server Error", "request_id": str(request_id) if request_id is not None else ""})
 
         log("INFO", f"RawEvent persisted id={ev_id} tenant_id={tenant_id}", module="gmail_webhook", request_id=str(request_id) if request_id is not None else "", tenant_id=tenant_id)
+        # WEBHOOK RECEIVED DONE
+        try:
+            webhook_duration_ms = int((time.monotonic() - flow_start) * 1000)
+            log("INFO", "webhook.received.done", module="gmail_webhook", request_id=str(request_id) if request_id is not None else None, raw_event_id=ev_id, tenant_id=tenant_id, duration_ms=webhook_duration_ms)
+            try:
+                await audit_event("webhook.received.done", tenant_id, None, {"raw_event_id": str(ev_id), "duration_ms": webhook_duration_ms, "outcome": outcome})
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         return JSONResponse(content={"status": outcome, "request_id": str(request_id) if request_id is not None else ""})
         # Idempotency check: perform using a fresh sync connection in a
         # thread to avoid using the request's AsyncSession which may be

@@ -4,7 +4,7 @@
     "_postman_id": "automation-humanaise",
     "description": "Consolidated Postman collection for admin monitoring, webhooks and integrations",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "1.4.4"
+    "version": "1.4.5"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8000" },
@@ -39,6 +39,12 @@
         { "name": "Monitoring Discarded Audits", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/admin/monitoring/discarded_audits?limit=50", "host": ["{{baseUrl}}"], "path": ["admin","monitoring","discarded_audits"] } } },
         { "name": "Monitoring Audit Trail", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/admin/monitoring/audit_trail?idempotency_key=", "host": ["{{baseUrl}}"], "path": ["admin","monitoring","audit_trail"] } } },
         { "name": "Monitoring Gmail Events", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/admin/monitoring/gmail_events?processed=true&limit=50", "host": ["{{baseUrl}}"], "path": ["admin","monitoring","gmail_events"] } } }
+      ]
+    },
+    {
+      "name": "Admin - Timeline",
+      "item": [
+        { "name": "Search Timeline (paginated)", "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/admin/timeline/search?page=1&per_page=50", "host": ["{{baseUrl}}"], "path": ["admin","timeline","search"] } } }
       ]
     },
     {

@@ -26,6 +26,8 @@ from typing import Any
 from sqlalchemy import select
 from app.db.models import Customer, Quote, ReceivedEmail
 from app.monitoring.logger import log as app_log
+import time
+from app.monitoring.audit import audit_event as audit_event_fn
 
 
 async def dispatch(event: Any, db) -> None:
@@ -54,9 +56,24 @@ async def dispatch(event: Any, db) -> None:
         nd_keys = list(nd.keys()) if isinstance(nd, dict) else None
     except Exception:
         nd_keys = None
-    app_log("INFO", "dispatcher invoked", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, flow_id=flow_id, raw_event_id=str(raw_event_id) if raw_event_id else None, outcome=outcome, normalized_keys=nd_keys)
+    # TODO(logging): aggiungere duration_ms a tutti gli step
+    start_ts = time.monotonic()
+    app_log("INFO", "dispatcher.start", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, flow_id=flow_id, raw_event_id=str(raw_event_id) if raw_event_id else None, outcome=outcome, normalized_keys=nd_keys)
+    try:
+        await audit_event_fn("dispatcher.start", tenant_id, flow_id, {"raw_event_id": str(raw_event_id) if raw_event_id else None})
+    except Exception:
+        pass
 
     if outcome in {"ignored", "unassigned"}:
+        try:
+            duration_ms = int((time.monotonic() - start_ts) * 1000)
+            app_log("INFO", "dispatcher.skipped", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, raw_event_id=str(raw_event_id) if raw_event_id else None, duration_ms=duration_ms)
+            try:
+                await audit_event_fn("dispatcher.skipped", tenant_id, flow_id, {"raw_event_id": str(raw_event_id) if raw_event_id else None, "duration_ms": duration_ms, "reason": "ignored_or_unassigned"})
+            except Exception:
+                pass
+        except Exception:
+            pass
         return
 
     # Idempotency check: if we already have a ReceivedEmail with this external_ref, consider processed
@@ -65,7 +82,15 @@ async def dispatch(event: Any, db) -> None:
         existing = res.scalar_one_or_none()
         if existing:
             # Already processed this raw event for DB side-effects; no-op
-            app_log("INFO", "dispatch no-op: already processed (ReceivedEmail exists)", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, raw_event_id=str(raw_event_id))
+            try:
+                duration_ms = int((time.monotonic() - start_ts) * 1000)
+                app_log("INFO", "dispatcher.noop", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, raw_event_id=str(raw_event_id), duration_ms=duration_ms)
+                try:
+                    await audit_event_fn("dispatcher.skipped", tenant_id, flow_id, {"raw_event_id": str(raw_event_id), "reason": "idempotent", "duration_ms": duration_ms})
+                except Exception:
+                    pass
+            except Exception:
+                pass
             return
         else:
             app_log("DEBUG", "no existing ReceivedEmail found; proceeding", component="dispatcher", tenant_id=str(tenant_id) if tenant_id else None, raw_event_id=str(raw_event_id))
@@ -216,9 +241,27 @@ async def dispatch(event: Any, db) -> None:
         await db.execute(ReceivedEmail.__table__.insert().values(**received_values))
         app_log("INFO", "ReceivedEmail inserted", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, external_ref=received_values.get("external_ref"))
 
+        try:
+            duration_ms = int((time.monotonic() - start_ts) * 1000)
+            try:
+                await audit_event_fn("dispatch.completed", tenant_id, flow_id, {"raw_event_id": str(raw_event_id), "quote_id": str(quote_id), "customer_id": str(customer_id) if customer_id else None, "duration_ms": duration_ms})
+            except Exception:
+                pass
+            app_log("INFO", "dispatch.completed", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, quote_id=str(quote_id), duration_ms=duration_ms)
+        except Exception:
+            pass
         return
 
     if outcome == "follow_up":
         # Only append ReceivedEmail log
         await db.execute(ReceivedEmail.__table__.insert().values(**received_values))
+        try:
+            duration_ms = int((time.monotonic() - start_ts) * 1000)
+            try:
+                await audit_event_fn("dispatch.completed", tenant_id, flow_id, {"raw_event_id": str(raw_event_id), "duration_ms": duration_ms, "outcome": outcome})
+            except Exception:
+                pass
+            app_log("INFO", "dispatch.completed", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, duration_ms=duration_ms)
+        except Exception:
+            pass
         return
