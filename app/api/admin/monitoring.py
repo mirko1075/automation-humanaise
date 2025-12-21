@@ -175,6 +175,59 @@ async def overview(db: AsyncSession = Depends(get_async_session)) -> Any:
     return summary
 
 
+@router.get("/stalled")
+async def list_stalled_raw_events(
+    older_than_minutes: int = Query(60, ge=1),
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """List RawEvent rows that are unprocessed and older than `older_than_minutes`."""
+    cutoff = _now_utc() - timedelta(minutes=older_than_minutes)
+    # DB stores naive datetimes; convert to naive
+    if cutoff.tzinfo is not None:
+        cutoff_query = cutoff.astimezone(timezone.utc).replace(tzinfo=None)
+    else:
+        cutoff_query = cutoff
+    stmt = select(models.RawEvent).where(and_(models.RawEvent.processed == False, models.RawEvent.created_at <= cutoff_query))
+    stmt = stmt.order_by(models.RawEvent.created_at.desc()).limit(limit)
+    res = await db.execute(stmt)
+    rows = res.scalars().all()
+    return {"status": "success", "data": [{"id": str(r.id), "created_at": r.created_at.isoformat() if r.created_at else None, "source": r.source, "tenant_id": str(r.tenant_id) if r.tenant_id else None} for r in rows]}
+
+
+@router.get("/errors")
+async def list_recent_errors(
+    since_hours: int = Query(24, ge=1),
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Return recent ErrorLog entries and ReceivedEmail outcomes marked as 'error'."""
+    cutoff = _now_utc() - timedelta(hours=since_hours)
+    if cutoff.tzinfo is not None:
+        cutoff_query = cutoff.astimezone(timezone.utc).replace(tzinfo=None)
+    else:
+        cutoff_query = cutoff
+
+    # ErrorLog entries
+    err_stmt = select(models.ErrorLog).where(models.ErrorLog.created_at >= cutoff_query).order_by(models.ErrorLog.created_at.desc()).limit(limit)
+    res = await db.execute(err_stmt)
+    errs = res.scalars().all()
+    # Recent ReceivedEmail with outcome='error'
+    rec_stmt = select(models.ReceivedEmail).where(and_(models.ReceivedEmail.created_at >= cutoff_query, models.ReceivedEmail.outcome == 'error')).order_by(models.ReceivedEmail.created_at.desc()).limit(limit)
+    rres = await db.execute(rec_stmt)
+    recs = rres.scalars().all()
+
+    data = {
+        "error_logs": [
+            {"id": str(e.id), "message": e.message, "created_at": e.created_at.isoformat() if e.created_at else None} for e in errs
+        ],
+        "received_email_errors": [
+            {"id": str(r.id), "identifier": r.identifier, "created_at": r.created_at.isoformat() if r.created_at else None, "details": r.raw_payload} for r in recs
+        ]
+    }
+    return {"status": "success", "data": data}
+
+
 def _parse_iso_date(s: Optional[str]) -> Optional[datetime]:
     if not s:
         return None
