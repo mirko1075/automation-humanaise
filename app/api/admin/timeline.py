@@ -10,7 +10,7 @@ This module is read-only and intended for operator observability. It does
 not alter business state.
 """
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,8 +87,13 @@ async def search_timeline(
         stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
         filters = []
         if from_ts:
+            # Normalize timezone-aware datetimes to UTC naive for DB comparisons
+            if from_ts.tzinfo is not None:
+                from_ts = from_ts.astimezone(timezone.utc).replace(tzinfo=None)
             filters.append(AuditLog.created_at >= from_ts)
         if to_ts:
+            if to_ts.tzinfo is not None:
+                to_ts = to_ts.astimezone(timezone.utc).replace(tzinfo=None)
             filters.append(AuditLog.created_at <= to_ts)
         if action:
             filters.append(AuditLog.action == action)
