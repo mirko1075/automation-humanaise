@@ -11,7 +11,19 @@ from sqlalchemy import text
 
 def _get_database_url() -> Optional[str]:
     """Fetch DATABASE_URL from environment or .env-loaded settings."""
-    return os.getenv("DATABASE_URL")
+    # Prefer explicit environment variable but fall back to the application's
+    # configured settings (Pydantic) when present. Importing `settings` at
+    # module import time may introduce circular imports for some test helpers,
+    # so perform the import lazily.
+    dsn = os.getenv("DATABASE_URL")
+    if dsn:
+        return dsn
+    try:
+        from app.config import settings
+
+        return getattr(settings, "DATABASE_URL", None)
+    except Exception:
+        return None
 
 
 async def check_db_ready() -> bool:
