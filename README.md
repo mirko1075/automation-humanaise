@@ -171,6 +171,7 @@ pytest tests/ --cov=app --cov-report=html
 - `GET /admin/health` - Basic health check
 - `GET /admin/health/deep` - Deep health check (DB, external services)
 - `GET /admin/ready` - Kubernetes readiness probe
+  - Note: `/admin/ready` also verifies OneDrive/SharePoint connectivity (using server-side OAuth app-only). If OneDrive is not ready the endpoint returns HTTP 503 and a `detail` payload explaining the reason. Use `ONEDRIVE_HEALTHCHECK_WRITE=true` to enable an optional safe write test.
 
 ### Webhooks
 - `POST /gmail/webhook` - Gmail Pub/Sub webhook receiver
@@ -187,6 +188,26 @@ pytest tests/ --cov=app --cov-report=html
 - `GET /docs` - Swagger UI (auto-generated)
 - `GET /redoc` - ReDoc (auto-generated)
 - `GET /openapi.json` - OpenAPI specification
+
+## 🔐 Google OAuth Setup
+
+This backend supports obtaining Gmail API tokens via a server-side OAuth flow. Use the following environment variables to configure Google OAuth:
+
+- `GOOGLE_CLIENT_ID`: OAuth client ID from Google Cloud Console
+- `GOOGLE_CLIENT_SECRET`: OAuth client secret
+- `GOOGLE_REDIRECT_URI`: Redirect URI registered in Google Cloud (e.g. `https://your-app.example.com/auth/google/callback`)
+
+To manually start the OAuth flow for a tenant, visit the following URL in a browser (replace `tenant_id` with the target tenant UUID):
+
+```
+https://<your-host>/auth/google/login?tenant_id=<tenant_uuid>
+```
+
+After consent Google will redirect to the configured `GOOGLE_REDIRECT_URI` which is handled by the backend at `GET /auth/google/callback`. The callback exchanges the authorization code for `access_token` and `refresh_token` and persists them in the `external_tokens` table for the given tenant.
+
+Security notes:
+- The callback endpoint does not call Gmail or trigger Pub/Sub; it only stores tokens in `ExternalTokenRepository`.
+- Do not log tokens or client secrets in production logs.
 
 ## 🏗️ Architecture
 

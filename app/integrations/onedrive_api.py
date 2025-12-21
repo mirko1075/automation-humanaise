@@ -29,8 +29,9 @@ class QuoteDocumentAction(Base):
     action_type = Column(String, nullable=False, default="excel_update")
     payload = Column(JSON, nullable=False)
     status = Column(String, nullable=False, default="PENDING")
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    from sqlalchemy import DateTime as SA_DateTime
+    created_at = Column(SA_DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(SA_DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 async def update_quote_excel(tenant_id: UUID, quote: Quote, customer: Customer) -> None:

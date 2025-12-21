@@ -58,30 +58,18 @@ SessionLocal = sessionmaker(
 Base = declarative_base()
 
 
-# If using a SQLite URL (tests), ensure tables exist by creating metadata.
-try:
-    if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
-        import asyncio
+def ensure_tables_async():
+    """Return an async callable that creates tables when awaited.
 
-        async def _create_tables():
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+    Tests can import this helper and run it from an async fixture to create
+    schema without triggering event loop management at import time.
+    """
 
-        try:
-            # Prefer get_running_loop() to detect if an event loop is active
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
+    async def _create_tables():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-        if loop and loop.is_running():
-            # If an event loop is already running, schedule the task
-            asyncio.create_task(_create_tables())
-        else:
-            # No running loop — run synchronously to create tables
-            asyncio.run(_create_tables())
-except Exception:
-    # Table creation is best-effort during tests; don't block import on failures
-    pass
+    return _create_tables
 
 
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:

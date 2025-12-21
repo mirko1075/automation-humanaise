@@ -1,3 +1,22 @@
+import pytest
+from app.db.session import engine
+from app.db.session import Base
+
+
+@pytest.fixture(scope="session", autouse=True)
+def create_test_database_schema():
+    """Create all tables synchronously using the engine's sync_engine before tests.
+
+    This avoids attaching futures to different event loops when tests run
+    using asyncpg/async engines.
+    """
+    try:
+        sync_engine = engine.sync_engine
+        Base.metadata.create_all(bind=sync_engine)
+    except Exception:
+        # Best-effort; tests that run in-memory sqlite may not have sync_engine
+        pass
+    yield
 import sys
 from types import SimpleNamespace
 

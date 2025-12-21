@@ -38,7 +38,7 @@ except Exception:
 class ExternalToken(Base):
     __tablename__ = "external_tokens"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     flow_id = Column(String, nullable=True)
     provider = Column(String, nullable=False)
     external_id = Column(String, nullable=True)
@@ -141,3 +141,14 @@ class ErrorLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)
+
+
+class IntegrationEvent(Base):
+    __tablename__ = "integration_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    integration = Column(String, nullable=False, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    level = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    context = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
