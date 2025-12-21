@@ -207,6 +207,29 @@ async def process_normalized_event(event: NormalizedEvent) -> None:
                 log("WARNING", f"No file provider configured for tenant {tenant_id}", module="preventivi_service", tenant_id=tenant_id)
             await audit_event("excel_update_completed", tenant_id, flow_id, {"quote_id": str(quote.id)}, request_id=request_id)
             log("INFO", "PreventiviV1: processing completed", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
+            # Export to simple OneDrive Excel (file-based writer)
+            # TODO(excel): rendere l'export asincrono / background
+            # TODO(retry): retry con backoff su errori OneDrive
+            # Ensure DB transaction is committed before exporting; only export on successful commit
+            try:
+                await db.commit()
+            except Exception as commit_exc:
+                log("ERROR", f"DB commit before Excel export failed: {commit_exc}", module="preventivi_service", tenant_id=tenant_id, flow_id=flow_id, request_id=request_id)
+                await audit_event("preventivi_db_commit_error", tenant_id, flow_id, {"quote_id": str(quote.id), "error": str(commit_exc)}, request_id=request_id)
+            else:
+                # Import the lightweight excel writer and call it; failures should not break the main flow
+                from app.integrations.onedrive import excel_writer as ew
+
+                try:
+                    await ew.upsert_preventivo_row(quote, customer, tenant)
+                except Exception as exc:
+                    # Log and audit, but do not raise — main flow must continue
+                    log("ERROR", f"Excel writer failed: {exc}", module="preventivi_service", tenant_id=tenant_id, flow_id=flow_id, request_id=request_id, quote_id=str(quote.id))
+                    try:
+                        await audit_event("excel_writer_error", tenant_id, flow_id, {"quote_id": str(quote.id), "error": str(exc)}, request_id=request_id)
+                    except Exception:
+                        # best-effort audit
+                        pass
         except Exception as exc:
             tb = traceback.format_exc()
             log("ERROR", f"PreventiviV1 error: {exc}", module="preventivi_service", request_id=request_id, tenant_id=tenant_id, flow_id=flow_id, event_id=event_id)
