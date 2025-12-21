@@ -41,7 +41,31 @@ else
 	if echo "$ERR_TEXT" | grep -E "already exists|DuplicateColumn|DuplicateTable" >/dev/null 2>&1; then
 		if [ "${AUTO_STAMP:-false}" = "true" ]; then
 			echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: Detected existing schema objects and AUTO_STAMP=true; stamping alembic head"
-			python -m alembic stamp head
+		  # Ensure alembic_version.version_num can hold longer revision identifiers
+		  echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: Ensuring alembic_version.version_num column is large enough"
+		  python - <<'PY'
+	import os
+	from sqlalchemy import create_engine, text
+	url = os.environ.get('DATABASE_URL')
+	if not url:
+		raise SystemExit('DATABASE_URL missing')
+	# Convert async URL to sync for SQLAlchemy engine if needed
+	sync_url = url.replace('+asyncpg','')
+	try:
+		engine = create_engine(sync_url)
+		with engine.connect() as conn:
+			try:
+				conn.execute(text("ALTER TABLE IF EXISTS alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)"))
+			except Exception:
+				# best-effort; continue
+				pass
+	finally:
+		try:
+			engine.dispose()
+		except Exception:
+			pass
+	PY
+		  python -m alembic stamp head
 			echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: alembic stamped head successfully"
 		else
 			echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: Migration failed due to existing schema objects." >&2
