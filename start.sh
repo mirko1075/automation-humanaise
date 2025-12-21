@@ -26,7 +26,39 @@ if [ -z "${DATABASE_URL-}" ]; then
 	exit 1
 fi
 
-python -m alembic upgrade head
+# Run alembic upgrade and capture errors. If upgrade fails due to existing
+# schema objects (DuplicateColumn/DuplicateTable) we optionally auto-stamp the
+# DB to the current head when AUTO_STAMP=true to recover from manual schema
+# application (use with caution).
+TMP_ERR=$(mktemp)
+if python -m alembic upgrade head 2>"$TMP_ERR"; then
+	echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: alembic upgrade succeeded"
+else
+	echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: alembic upgrade failed; inspecting error" >&2
+	# Read error and look for common 'already exists' patterns
+	ERR_TEXT=$(sed -n '1,200p' "$TMP_ERR" | tr '\n' ' ')
+	echo "alembic error: ${ERR_TEXT}" >&2
+	if echo "$ERR_TEXT" | grep -E "already exists|DuplicateColumn|DuplicateTable" >/dev/null 2>&1; then
+		if [ "${AUTO_STAMP:-false}" = "true" ]; then
+			echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: Detected existing schema objects and AUTO_STAMP=true; stamping alembic head"
+			python -m alembic stamp head
+			echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: alembic stamped head successfully"
+		else
+			echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: Migration failed due to existing schema objects." >&2
+			echo "If this is intentional (schema already created), set AUTO_STAMP=true to mark migrations as applied." >&2
+			echo "Captured alembic error:" >&2
+			sed -n '1,200p' "$TMP_ERR" >&2
+			rm -f "$TMP_ERR"
+			exit 1
+		fi
+	else
+		echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: alembic upgrade failed with unexpected error" >&2
+		sed -n '1,200p' "$TMP_ERR" >&2
+		rm -f "$TMP_ERR"
+		exit 1
+	fi
+fi
+rm -f "$TMP_ERR"
 
 echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] start.sh: Migrations completed; starting uvicorn"
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT}" --proxy-headers
