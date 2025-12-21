@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.6.0 — IMAP ingestor (2025-12-21)
+
+### Added
+
+- IMAP ingestor package under `ingestors/imap` implementing a synchronous,
+  tenant-aware IMAP poller, MIME parser, and persistence layer. Key files:
+  - `ingestors/imap/imap_client.py` — IMAP connection, UID/UIDVALIDITY and fetch helpers.
+  - `ingestors/imap/parser.py` — MIME parser preferring `text/plain`, extracting attachments.
+  - `ingestors/imap/repository.py` — `imap_raw_events` model and repository with deduplication and `record_error` audit helper.
+  - `ingestors/imap/poller.py` — Polling orchestration (incremental fetch, parse, persist).
+
+### Notes
+
+- The ingestor is intentionally agnostic to business flows and emits raw events for the existing normalizer/dispatcher pipeline.
+- DB migration for `imap_raw_events` is required before running the poller in production; refer to `ingestors/imap/repository.py` for schema.
+- Error logging persists to `error_logs` to ensure auditability when IMAP credentials/connection fail.
+
 ## v1.5.0 — Human console logging + FOLLOW_UP by protocol (2025-12-21)
 
 ### Added
