@@ -321,16 +321,48 @@ async def dispatch(event: Any, db) -> None:
         # Insert ReceivedEmail log (linked or not)
         await db.execute(ReceivedEmail.__table__.insert().values(**received_values))
 
-        # If we linked to a quote, call Excel writer to update the row
+        # If we linked to a quote, call Excel writer to update the row and save attachments
         if linked_quote:
             try:
                 # Load customer for Excel update
                 res_c = await db.execute(select(Customer).where(Customer.id == linked_quote.customer_id))
                 linked_customer = res_c.scalar_one_or_none()
-                # Call Excel writer (file-based) — do not await long-running ops here, but keep minimal
+
+                # 1) Save attachments (if present in normalized payload)
+                attachments = None
+                try:
+                    attachments = (event.normalized_data.get("email") or {}).get("attachments") if isinstance(event.normalized_data, dict) else None
+                except Exception:
+                    attachments = None
+
+                if attachments:
+                    try:
+                        from app.integrations.onedrive.attachment_ops import save_attachments_for_followup
+
+                        await audit_event_fn("followup.start", tenant_id, flow_id, {"raw_event_id": str(raw_event_id), "linked_quote_id": str(linked_quote.id)})
+                        try:
+                            console_info("followup: saving attachments to OneDrive")
+                        except Exception:
+                            pass
+
+                        saved = await save_attachments_for_followup(linked_quote, linked_customer, attachments, tenant_id, protocollo)
+                        try:
+                            saved_count = sum(1 for s in saved if s.get("status") == "saved")
+                            await audit_event_fn("followup.attachments.saved", tenant_id, flow_id, {"saved_count": saved_count})
+                        except Exception:
+                            pass
+                    except Exception:
+                        app_log("ERROR", "followup: attachment save failed", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id)
+
+                # 2) Call Excel writer (file-based) — do not await long-running ops here, but keep minimal
                 from app.integrations.onedrive import excel_writer as ew
                 try:
+                    await audit_event_fn("followup.excel.update.start", tenant_id, flow_id, {"linked_quote_id": str(linked_quote.id)})
                     await ew.upsert_preventivo_row(linked_quote, linked_customer, tenant_id)
+                    try:
+                        await audit_event_fn("followup.excel.update.done", tenant_id, flow_id, {"linked_quote_id": str(linked_quote.id)})
+                    except Exception:
+                        pass
                     try:
                         console_info("excel updated")
                     except Exception:
