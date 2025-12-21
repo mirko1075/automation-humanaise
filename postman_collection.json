@@ -214,6 +214,32 @@
                       }
                     },
                     {
+                      "name": "Admin Messages - List",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/messages?limit=50",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "messages"]
+                        },
+                        "description": "List recent raw events joined with normalized events (read-only)"
+                      }
+                    },
+                    {
+                      "name": "Admin Messages - Detail",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                          "raw": "{{baseUrl}}/admin/messages/{{raw_event_id}}",
+                          "host": ["{{baseUrl}}"],
+                          "path": ["admin", "messages", "{{raw_event_id}}"]
+                        },
+                        "description": "Get full raw event and associated normalized event"
+                      }
+                    },
+                    {
                       "name": "Monitoring Stalled",
                       "request": {
                         "method": "GET",

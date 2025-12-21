@@ -421,6 +421,127 @@ async def audit_trail_by_idempotency(
             "created_at": r.created_at.isoformat() if r.created_at else None,
         })
     return {"status": "success", "data": data}
+    
+
+
+@router.get("/messages")
+async def list_admin_messages(
+    limit: int = Query(50, ge=1, le=500),
+    only_pending: Optional[bool] = Query(False, description="If true, only return raw events where processed=false"),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Return RawEvent list joined with NormalizedEvent (if exists).
+
+    Read-only. Results ordered by RawEvent.created_at DESC.
+    """
+    from sqlalchemy import outerjoin
+
+    stmt = select(models.RawEvent)
+    if only_pending:
+        stmt = stmt.where(models.RawEvent.processed == False)
+    stmt = stmt.order_by(models.RawEvent.created_at.desc()).limit(limit)
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+    data = []
+    for r in rows:
+        # try to find a normalized event for this raw event by idempotency or payload link
+        norm = None
+        try:
+            ne_stmt = select(models.NormalizedEvent).where(models.NormalizedEvent.id == func.json_extract(r.payload, "$.normalized_event_id"))
+            nr = await db.execute(ne_stmt)
+            norm = nr.scalars().first()
+        except Exception:
+            # best-effort: some payloads won't have normalized id; skip
+            norm = None
+
+        outcome = None
+        if norm:
+            outcome = norm.status
+
+        # attempt to surface any error in payload or audit details
+        error = None
+        try:
+            if isinstance(r.payload, dict) and r.payload.get("error"):
+                error = r.payload.get("error")
+        except Exception:
+            error = None
+
+        data.append({
+            "raw_event_id": str(r.id),
+            "source": r.source,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "processed": r.processed,
+            "outcome": outcome,
+            "tenant_id": str(r.tenant_id) if r.tenant_id else None,
+            "error": error,
+        })
+
+    # TODO(console): aggiungere UI admin
+    # TODO(replay): endpoint reprocess manuale
+    # TODO(monitoring): metriche e alert automatici
+
+    return {"status": "success", "data": data}
+
+
+@router.get("/messages/{raw_event_id}")
+async def get_admin_message(raw_event_id: str, db: AsyncSession = Depends(get_async_session)):
+    """Return RawEvent and associated NormalizedEvent (if any) with references to preventivo/customer when present."""
+    try:
+        stmt = select(models.RawEvent).where(models.RawEvent.id == raw_event_id)
+        res = await db.execute(stmt)
+        r = res.scalars().first()
+        if not r:
+            raise HTTPException(status_code=404, detail="RawEvent not found")
+
+        # try to locate normalized event by id in payload
+        norm = None
+        try:
+            ne_id = None
+            if isinstance(r.payload, dict):
+                ne_id = r.payload.get("normalized_event_id")
+            if ne_id:
+                nstmt = select(models.NormalizedEvent).where(models.NormalizedEvent.id == ne_id)
+                nres = await db.execute(nstmt)
+                norm = nres.scalars().first()
+        except Exception:
+            norm = None
+
+        # attempt to surface linked preventivo or customer ids in normalized_data
+        preventivo_ref = None
+        customer_ref = None
+        if norm and isinstance(norm.normalized_data, dict):
+            preventivo_ref = norm.normalized_data.get("preventivo_id")
+            customer_ref = norm.normalized_data.get("customer_id")
+
+        return {
+            "status": "success",
+            "data": {
+                "raw_event": {
+                    "id": str(r.id),
+                    "tenant_id": str(r.tenant_id) if r.tenant_id else None,
+                    "source": r.source,
+                    "payload": r.payload,
+                    "processed": r.processed,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                },
+                "normalized_event": {
+                    "id": str(norm.id),
+                    "event_type": norm.event_type,
+                    "status": norm.status,
+                    "normalized_data": norm.normalized_data,
+                    "created_at": norm.created_at.isoformat() if norm.created_at else None,
+                } if norm else None,
+                "references": {
+                    "preventivo_id": preventivo_ref,
+                    "customer_id": customer_ref,
+                },
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("monitoring.get_admin_message.failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch message details")
     clauses = [AuditLog.action == "preventivi_discarded"]
     if tenant_id:
         norm_param = tenant_id.replace('-', '').lower()

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Edilcos Automation Backend",
-    "version": "1.4.2",
+    "version": "1.4.4",
      "description": "Edilcos Automation Backend API. Note: OneDrive endpoints use server-side OAuth app-only; clients do not supply tokens.",
   },
   "servers": [
@@ -160,6 +160,27 @@
           {"name": "offset", "in": "query", "schema": {"type": "integer"}}
         ],
         "responses": {"200": {"description": "List of RawEvents"}}
+      }
+    },
+    "/admin/messages": {
+      "get": {
+        "summary": "List admin messages (raw events)",
+        "operationId": "listAdminMessages",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}, "description": "Limit results"},
+          {"name": "only_pending", "in": "query", "schema": {"type": "boolean"}, "description": "Only unprocessed raw events"}
+        ],
+        "responses": {"200": {"description": "List of admin messages"}}
+      }
+    },
+    "/admin/messages/{raw_event_id}": {
+      "get": {
+        "summary": "Get admin message details",
+        "operationId": "getAdminMessage",
+        "parameters": [
+          {"name": "raw_event_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "Message details"}, "404": {"description": "Not found"}}
       }
     },
     "/admin/monitoring/normalized_events": {
