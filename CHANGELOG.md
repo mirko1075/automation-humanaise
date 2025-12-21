@@ -1,4 +1,15 @@
 # Changelog
+## v1.4.4 — Integrate ExcelWriter after DB commit (2025-12-21)
+
+### Changed
+
+- Call `app.integrations.onedrive.excel_writer.upsert_preventivo_row` only after DB transaction commit in the PreventiviV1 flow. Failures during Excel export are logged and audited but do not break the main flow.
+
+### TODOs
+
+- TODO(excel): rendere l'export asincrono / background
+- TODO(retry): retry con backoff su errori OneDrive
+
 ## v1.4.3 — Hotfix & Features (2025-12-20)
 
 ### Added
