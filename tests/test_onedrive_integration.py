@@ -27,6 +27,8 @@ class MockQuote:
 async def db_setup():
     # Ensure tables exist for test DB
     if str(engine.url).startswith("sqlite"):
+        # Ensure model modules are imported so Base metadata includes all columns
+        import app.db.models  # noqa: F401
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     yield

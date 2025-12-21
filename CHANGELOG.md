@@ -1,5 +1,151 @@
 # Changelog
 
+## v1.5.0 — Human console logging + FOLLOW_UP by protocol (2025-12-21)
+
+### Added
+
+- `LOG_MODE` environment variable with values `human`, `json`, `both` (default: `both`) to toggle human-readable console logs alongside structured JSON logs.
+- `log_human(message: str)` helper for short, sequential human INFO lines used across the pipeline.
+
+### Changed
+
+- Added short human-readable messages for major pipeline steps: "Webhook received", "RawEvent saved", "Normalization started", "Classification completed: <OUTCOME>", "Excel updated on OneDrive", "Flow completed".
+- Protocol extraction in the normalizer enables `FOLLOW_UP` routing by matching `protocollo` values to existing `Quote` rows. Follow-up emails are linked to existing preventivi and trigger Excel row updates (no schema changes).
+
+### Notes
+
+- No DB schema changes. Conservative status updates applied where safe. TODOs added for retry/backoff and finer-grained state mapping.
+
+## v1.4.6 — Logging: human console mode + follow-up protocol support (2025-12-21)
+
+### Added
+
+- `LOG_MODE` environment flag to select console logging mode (`human`, `json`, `both`).
+- `log_human(message)` helper prints short human-readable INFO lines when `LOG_MODE` enables it.
+- Protocol extraction during normalization and protocol-based `FOLLOW_UP` routing: emails containing a `protocollo` (e.g. "Prot: 123/2025") are matched to existing `Quote` rows and routed as `follow_up`.
+
+### Changed
+
+- Added human-readable console messages for major pipeline steps (webhook, raw_event save, normalization, classification, dispatcher, OneDrive Excel updates).
+- `Preventivi` follow-up path now links received emails to existing quotes and updates Excel rows via the existing OneDrive helper.
+
+### Notes
+
+- No DB schema changes. Conservative status updates applied where safe. TODOs added for retry/backoff and finer-grained state mapping.
+
+## v1.4.5 — Admin timeline search, OpenAPI & Postman updates (2025-12-21)
+
+### Added
+
+- `GET /admin/timeline/search` — paginated timeline search with filters `from_ts`, `to_ts`, `action`, `tenant_id` (admin read-only endpoint).
+- OpenAPI and Postman collection updated to include the new timeline search endpoint.
+
+### Changed
+
+- Bumped package version to `1.4.5`.
+
+## v1.4.4 — Integrate ExcelWriter after DB commit (2025-12-21)
+
+### Changed
+
+- Call `app.integrations.onedrive.excel_writer.upsert_preventivo_row` only after DB transaction commit in the PreventiviV1 flow. Failures during Excel export are logged and audited but do not break the main flow.
+
+### TODOs
+
+- TODO(excel): rendere l'export asincrono / background
+- TODO(retry): retry con backoff su errori OneDrive
+
+## v1.4.3 — Hotfix & Features (2025-12-20)
+
+### Added
+
+- `app/integrations/onedrive/excel_writer.py` (ExcelWriter v1): file-based `commesse.xlsx` upsert for the `Preventivi` sheet. Uses download->edit->upload flow; includes soft-concurrency checks and audit logging.
+
+### Fixed
+
+- Import-time and runtime monitoring fixes discovered during local testing: timezone handling in monitoring queries and robust summary/alert generation.
+
+## v1.4.2 — Release: tests & docs (2025-12-20)
+
+### Added
+
+- Unit & integration tests for the Preventivo state machine and repository validation.
+
+### Changed
+
+- Bumped `openapi.json` version to `1.4.2` and updated release artifacts.
+
+### Notes
+
+- This release includes testing and documentation updates; no DB schema changes.
+
+## v1.4.1 — Monitoring & Alerts for Preventivi pipeline (2025-12-20)
+
+### Added
+
+- Read-only monitoring endpoints for the Gmail → Preventivi pipeline:
+  - `GET /admin/monitoring/overview` — high-level counters and last-event timestamps
+  - `GET /admin/monitoring/stalled` — list stalled RawEvent rows (unprocessed)
+  - `GET /admin/monitoring/errors` — recent error log and received-email errors
+  - `POST /admin/monitoring/check-alerts` — pull-based alert checker (Slack notifications)
+
+- Alerting engine (pull-based) with V1 rules and Slack notification integration.
+
+### Changed
+
+- Updated `openapi.json` and Postman collections to include the new monitoring endpoints.
+
+### TODOs / Notes
+
+- Alerts are currently Slack-first and guarded by config (`SLACK_ENABLED`, `SLACK_WEBHOOK_URL`).
+- TODOs are present in code for per-tenant thresholds, alert deduplication, and replay actions.
+
+### Added
+
+- Deterministic, rule-based Preventivi classifier (V1). Classifier implements explicit rules to mark incoming emails as `ignored`, `new_quote`, `follow_up`, or `unassigned`. This enables reliable, testable routing without LLM dependencies.
+- DB-only Preventivi dispatcher (V1) that performs idempotent customer upsert, quote creation, and mail-log insertion. Uses `ReceivedEmail.external_ref` for idempotency and does not perform external side effects.
+- Unit tests for the classifier and dispatcher, improving coverage for core flow routing logic.
+
+### Fixed
+
+- Gmail webhook robustness: fixed async DB session misuse and generator misuse in the FastAPI webhook. Added a safe synchronous write path to avoid asyncpg concurrent-operation errors during ingestion; webhook persists `RawEvent` rows idempotently and resolves tenants by `contact_channels.email` when available.
+- Test harness stabilization: adjusted `tests/conftest.py` to avoid cross-event-loop futures and ensure deterministic cleanup between tests.
+
+### Changed
+
+- Bumped package version to `1.4.0`.
+
+## v1.3.7 — Gmail webhook: ingest-only behavior (2025-12-20)
+
+### Changed
+
+- Gmail webhook now acts as ingest-only: it strictly parses the Pub/Sub push envelope, base64-decodes `message.data` and extracts `historyId` and `emailAddress`. It persists a `RawEvent` with these references and returns HTTP 200 immediately. The webhook does NOT call Gmail APIs or fetch message contents — all Gmail API interactions are performed later in the normalizer/worker pipeline. Rationale: fast ACK, resilience, and correct retry semantics.
+ - Tests: Reworked `tests/conftest.py` cleanup fixture to avoid pytest-asyncio deprecation warnings and to reliably dispose DB engines and cancel leftover asyncio tasks between tests. This improves full-suite determinism and prevents `asyncpg` connection concurrency errors in CI.
+ - Docs: Added `/gmail/webhook` POST operation to `openapi.json` (v1.3.7) and ensured Postman collections include an example Pub/Sub push payload. The OpenAPI entry documents the ingest-only behavior and the expected Pub/Sub envelope.
+
+## v1.3.6 — Preventivi: OneDrive/Excel sync integration (2025-12-20)
+
+### Added
+
+- Integrated the async OneDrive/Excel sync helper into the Preventivi flow: after customer/quote resolution, the system now upserts data to commesse.xlsx and ensures the OneDrive folder tree for each quote/customer, with idempotency and audit. Only triggered for new/existing quotes.
+
+## v1.3.5 — Preventivi OneDrive Excel integration (2025-12-20)
+
+### Added
+
+- Feature: Async helper to upsert quote, customer, and mail log in commesse.xlsx (OneDrive, sheets Clienti/Preventivi/Mail ricevute) for the Preventivi flow, with idempotency and audit.
+- Feature: Automatic creation of OneDrive folder tree for each customer/quote, including Allegati folder, on new/existing quote.
+- All operations are idempotent and logged/audited.
+
+## v1.3.4 — Resilient Gmail webhook & audit; ExternalToken upsert (2025-12-20)
+
+### Added / Fixed / Changed
+
+- Fix: Make Gmail webhook and audit writes resilient to async event-loop issues. Added synchronous threadpool fallbacks for audit writes and idempotency checks to avoid Future/event-loop attachment problems during tests and error handling.
+- Feature: `ExternalTokenRepository.upsert` with Postgres ON CONFLICT support and safe fallback for other backends.
+- Chore: Add `SLACK_ENABLED` config flag and no-op Slack alerts when disabled.
+- Tests: Adjusted tests to use isolated engines and tolerate environment differences (improved test stability).
+
 ## v1.3.3 — Microsoft Graph OAuth App-Only & OneDrive Improvements (2025-12-13)
 
 ## v1.3.4 — Auth Callback & Docs (2025-12-13)
@@ -359,3 +505,4 @@
 - Implemented CRUD repositories for all core models.
 - Ensured multi-tenant fields and idempotency in data layer.
 - No business logic, only structure and DB foundation.
+

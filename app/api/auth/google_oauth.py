@@ -27,6 +27,9 @@ from app.db.repositories.external_token_repository import ExternalTokenRepositor
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Public alias router (no prefix) to expose `/google/login` as requested
+public_router = APIRouter(tags=["auth-public"]) 
+
 
 def _encode_state(state: Dict[str, Any]) -> str:
     """Encode state dict into a URL-safe string."""
@@ -74,6 +77,17 @@ async def google_login(request: Request) -> RedirectResponse:
     return RedirectResponse(url=auth_url)
 
 
+# Public alias for `/google/login` (no /auth prefix)
+@public_router.get("/google/login")
+async def google_login_public(request: Request) -> RedirectResponse:
+    """Public shortcut to start Google OAuth flow at `/google/login`.
+
+    This delegates to the same logic as `/auth/google/login` but exposes a
+    non-prefixed URL as required by some clients.
+    """
+    return await google_login(request)
+
+
 @router.get("/google/callback")
 async def google_callback(request: Request, db=Depends(get_async_session)) -> JSONResponse:
     """Handle OAuth callback: exchange code for tokens and persist them.
@@ -87,9 +101,17 @@ async def google_callback(request: Request, db=Depends(get_async_session)) -> JS
 
     # Recover tenant_id from state (optional)
     tenant_id: Optional[str] = None
+    tenant_uuid = None
     if state:
         decoded = _decode_state(state)
         tenant_id = decoded.get("tenant_id")
+        # Try to parse tenant_id to UUID for repository lookups
+        from uuid import UUID as UUIDType
+        try:
+            if tenant_id:
+                tenant_uuid = UUIDType(tenant_id)
+        except Exception:
+            tenant_uuid = None
 
     log("INFO", "Exchanging Google OAuth code for tokens", module="google_oauth", tenant_id=tenant_id)
 
@@ -146,8 +168,11 @@ async def google_callback(request: Request, db=Depends(get_async_session)) -> JS
     # Persist via ExternalTokenRepository (upsert semantics)
     repo = ExternalTokenRepository(db)
 
-    # Build data blob
-    data_blob = {k: v for k, v in token_data.items() if k not in ("access_token", "refresh_token")}
+    # Build data blob: include refresh_token and expires_at for later refresh
+    data_blob = {k: v for k, v in token_data.items() if k not in ("access_token",)}
+    if expires_at:
+        # serialize as ISO8601
+        data_blob["expires_at"] = expires_at.isoformat()
 
     # Use tenant_id if provided; otherwise leave tenant_id NULL but store external_id
     # Upsert: try to find by tenant+provider or external_id+provider

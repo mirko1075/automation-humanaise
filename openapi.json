@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Edilcos Automation Backend",
-    "version": "1.0.0",
+    "version": "1.4.5",
      "description": "Edilcos Automation Backend API. Note: OneDrive endpoints use server-side OAuth app-only; clients do not supply tokens.",
   },
   "servers": [
@@ -25,7 +25,44 @@
                     "status": { "type": "string", "example": "healthy" }
                   }
                 }
-              }
+                  ,
+                  "/admin/monitoring/overview": {
+                    "get": {
+                      "summary": "Monitoring overview",
+                      "operationId": "getMonitoringOverview",
+                      "responses": {
+                        "200": { "description": "Monitoring overview" }
+                      }
+                    }
+                  },
+                  "/admin/monitoring/stalled": {
+                    "get": {
+                      "summary": "List stalled raw events",
+                      "operationId": "getMonitoringStalled",
+                      "parameters": [
+                        {"name": "older_than_minutes", "in": "query", "schema": {"type": "integer"}},
+                        {"name": "limit", "in": "query", "schema": {"type": "integer"}}
+                      ],
+                      "responses": {"200": {"description": "List of stalled events"}}
+                    }
+                  },
+                  "/admin/monitoring/errors": {
+                    "get": {
+                      "summary": "Recent errors",
+                      "operationId": "getMonitoringErrors",
+                      "parameters": [
+                        {"name": "since_hours", "in": "query", "schema": {"type": "integer"}}
+                      ],
+                      "responses": {"200": {"description": "Recent errors"}}
+                    }
+                  },
+                  "/admin/monitoring/check-alerts": {
+                    "post": {
+                      "summary": "Run monitoring checks and emit alerts",
+                      "operationId": "postMonitoringCheckAlerts",
+                      "responses": {"200": {"description": "Alert summary"}}
+                    }
+                  }
             }
           }
         }
@@ -125,6 +162,27 @@
         "responses": {"200": {"description": "List of RawEvents"}}
       }
     },
+    "/admin/messages": {
+      "get": {
+        "summary": "List admin messages (raw events)",
+        "operationId": "listAdminMessages",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}, "description": "Limit results"},
+          {"name": "only_pending", "in": "query", "schema": {"type": "boolean"}, "description": "Only unprocessed raw events"}
+        ],
+        "responses": {"200": {"description": "List of admin messages"}}
+      }
+    },
+    "/admin/messages/{raw_event_id}": {
+      "get": {
+        "summary": "Get admin message details",
+        "operationId": "getAdminMessage",
+        "parameters": [
+          {"name": "raw_event_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "Message details"}, "404": {"description": "Not found"}}
+      }
+    },
     "/admin/monitoring/normalized_events": {
       "get": {
         "summary": "List Normalized Events",
@@ -161,6 +219,25 @@
               }
             }
           }
+        }
+      }
+    },
+    "/admin/timeline/search": {
+      "get": {
+        "summary": "Search audit timeline (paginated)",
+        "operationId": "searchAuditTimeline",
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}},
+          {"name": "per_page", "in": "query", "schema": {"type": "integer", "default": 50}},
+          {"name": "from_ts", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "Start timestamp (inclusive)"},
+          {"name": "to_ts", "in": "query", "schema": {"type": "string", "format": "date-time"}, "description": "End timestamp (inclusive)"},
+          {"name": "action", "in": "query", "schema": {"type": "string"}, "description": "Filter by audit action"},
+          {"name": "tenant_id", "in": "query", "schema": {"type": "string"}, "description": "Filter by tenant id"}
+        ],
+        "responses": {
+          "200": {"description": "Paginated audit timeline"},
+          "400": {"description": "Invalid request"},
+          "500": {"description": "Server error"}
         }
       }
     },
@@ -202,6 +279,48 @@
       }
     },
     "/auth/google/callback": {
+    ,
+    "/gmail/webhook": {
+      "post": {
+        "summary": "Gmail Pub/Sub webhook (ingest-only)",
+        "operationId": "gmailPubSubWebhook",
+        "description": "Accepts Gmail Pub/Sub push messages. This endpoint is ingest-only: it decodes the base64 `message.data` payload and persists a `RawEvent`. The endpoint ACKs (HTTP 200) immediately and does not call Gmail APIs.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "object",
+                    "properties": {
+                      "data": { "type": "string", "description": "base64-encoded JSON with historyId, emailAddress, messageId" },
+                      "messageId": { "type": "string" },
+                      "publishTime": { "type": "string", "format": "date-time" }
+                    }
+                  },
+                  "subscription": { "type": "string" }
+                }
+              },
+              "example": {
+                "message": {
+                  "data": "eyJoaXN0b3J5SWQiOiAiMTIzNDU3IiwgImVtYWlsQWRkcmVzcyI6ICJ0ZXN0QGV4YW1wbGUuY29tIiwgIm1lc3NhZ2VJZCI6ICJtc2ctdGVzdC1mbG93LTAwMSJ9",
+                  "messageId": "pub-sub-msg-124",
+                  "publishTime": "2025-12-13T10:00:00.000Z"
+                },
+                "subscription": "projects/myproject/subscriptions/mysubscription"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": { "description": "Accepted (ACK)" },
+          "400": { "description": "Bad request" },
+          "500": { "description": "Server error" }
+        }
+      }
+    }
       "get": {
         "summary": "Google OAuth callback",
         "operationId": "googleCallback",

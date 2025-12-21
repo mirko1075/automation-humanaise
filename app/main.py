@@ -13,11 +13,16 @@ from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.monitoring.context import set_request_context
 from app.api.admin.health import router as health_router
+from app.api.admin.tenants import router as tenants_router
+from app.api.admin.health import health as admin_health, health_deep as admin_health_deep
 from app.api.admin.errors import router as errors_router
 from app.api.ingress.gmail_webhook import router as gmail_router
 from app.api.admin.monitoring import router as monitoring_router
 from app.api.admin.integrations import router as integrations_router
+from app.api.admin.messages import router as messages_router
+from app.api.admin.timeline import router as timeline_router
 from app.api.auth.google_oauth import router as auth_router
+from app.api.auth.google_oauth import public_router as auth_public_router
 from app.config import settings
 from app.monitoring.logger import log
 
@@ -76,11 +81,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Mount routers
 app.include_router(health_router)
+app.include_router(tenants_router)
 app.include_router(errors_router)
 app.include_router(gmail_router)
 app.include_router(monitoring_router)
 app.include_router(integrations_router)
+app.include_router(messages_router)
+app.include_router(timeline_router)
 app.include_router(auth_router)
+app.include_router(auth_public_router)
 
 # Logging initialization
 log("INFO", "Edilcos Automation Backend started", module="main")

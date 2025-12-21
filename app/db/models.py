@@ -15,6 +15,9 @@ class Tenant(Base):
     name = Column(String, nullable=False)
     status = Column(String, nullable=False, default="active")
     active_flows = Column(JSON, nullable=True)
+    # Contact channels used for tenant resolution (ingress)
+    # Example: {"email": ["mirko.siddi@gmail.com"], "whatsapp": ["+39..."]}
+    contact_channels = Column(JSON, nullable=True)
     file_provider = Column(String, nullable=True)  # "localfs", "onedrive", "gdrive", etc.
     file_config = Column(JSON, nullable=True)  # Provider-specific configuration
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -51,12 +54,28 @@ class ExternalToken(Base):
 class RawEvent(Base):
     __tablename__ = "raw_events"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
+    # tenant_id is nullable to allow unassigned/unknown-tenant ingress events
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     flow_id = Column(String, nullable=True)
     source = Column(String, nullable=False)
     payload = Column(JSON, nullable=False)
     processed = Column(Boolean, default=False)
     idempotency_key = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class ReceivedEmail(Base):
+    __tablename__ = "received_emails"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
+    channel = Column(String, nullable=False)  # 'email', 'whatsapp', etc.
+    identifier = Column(String, nullable=True)  # e.g., email address or phone number
+    external_ref = Column(String, nullable=True)  # historyId or external message reference
+    outcome = Column(String, nullable=False, default="received")
+    processed = Column(Boolean, default=False)
+    raw_payload = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)

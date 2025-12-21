@@ -57,3 +57,35 @@ class TenantRepository:
         await self.db.delete(tenant)
         await self.db.commit()
         return True
+
+    async def get_by_name(self, name: str) -> Optional[Tenant]:
+        """Get tenant by name (case-sensitive)."""
+        result = await self.db.execute(select(Tenant).where(Tenant.name == name))
+        return result.scalar_one_or_none()
+
+    async def upsert_by_name(self, name: str, **kwargs) -> Tenant:
+        """Create a tenant if it doesn't exist, or update provided fields if it does.
+
+        Args:
+            name: tenant name used as unique key for upsert
+            **kwargs: additional fields to set on create or update
+
+        Returns:
+            Tenant: the created or updated tenant model
+        """
+        tenant = await self.get_by_name(name)
+        if not tenant:
+            tenant = Tenant(name=name)
+            for k, v in kwargs.items():
+                setattr(tenant, k, v)
+            self.db.add(tenant)
+            await self.db.commit()
+            await self.db.refresh(tenant)
+            return tenant
+
+        # tenant exists; update provided fields
+        for k, v in kwargs.items():
+            setattr(tenant, k, v)
+        await self.db.commit()
+        await self.db.refresh(tenant)
+        return tenant

@@ -15,6 +15,8 @@ async def main():
     TestSessionLocal = sessionmaker(bind=engine, class_=__import__('sqlalchemy.ext.asyncio').ext.asyncio.AsyncSession, expire_on_commit=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        # Ensure models are imported so metadata is complete
+        import app.db.models  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
     async with TestSessionLocal() as session:
         tenant = Tenant(id=uuid4(), name='T', status='active')

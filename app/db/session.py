@@ -11,7 +11,19 @@ from sqlalchemy import text
 
 def _get_database_url() -> Optional[str]:
     """Fetch DATABASE_URL from environment or .env-loaded settings."""
-    return os.getenv("DATABASE_URL")
+    # Prefer explicit environment variable but fall back to the application's
+    # configured settings (Pydantic) when present. Importing `settings` at
+    # module import time may introduce circular imports for some test helpers,
+    # so perform the import lazily.
+    dsn = os.getenv("DATABASE_URL")
+    if dsn:
+        return dsn
+    try:
+        from app.config import settings
+
+        return getattr(settings, "DATABASE_URL", None)
+    except Exception:
+        return None
 
 
 async def check_db_ready() -> bool:
@@ -34,8 +46,8 @@ Database session and base class setup (SQLAlchemy 2.0 style).
 """
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from app.config import settings
 
 DATABASE_URL = settings.DATABASE_URL
@@ -47,12 +59,10 @@ if DATABASE_URL and ":memory:" in DATABASE_URL:
     DATABASE_URL = file_db
 
 engine = create_async_engine(DATABASE_URL, future=True, echo=False)
-SessionLocal = sessionmaker(
+SessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
 )
 
 Base = declarative_base()
