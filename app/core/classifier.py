@@ -20,7 +20,7 @@ from typing import Optional, Dict
 from uuid import UUID
 import time
 from app.monitoring.logger import log as app_log
-from app.monitoring.logger import console_info
+from app.monitoring.logger import console_info, log_human
 from app.monitoring.audit import audit_event as audit_event_fn
 from sqlalchemy import select, cast
 from sqlalchemy import String as _String
@@ -121,6 +121,10 @@ async def classify(email_data: Dict[str, str], tenant_id: Optional[UUID], db) ->
                     console_info(f"preventivo loaded for protocol {protocollo}")
                 except Exception:
                     pass
+                try:
+                    log_human(f"preventivo loaded for protocol {protocollo}")
+                except Exception:
+                    pass
                 return {"outcome": "follow_up", "reason": "protocol_match", "protocollo": protocollo}
         except Exception:
             pass
@@ -150,6 +154,10 @@ async def classify(email_data: Dict[str, str], tenant_id: Optional[UUID], db) ->
     app_log("INFO", "classifier.done", tenant_id=str(tenant_id) if tenant_id else None, outcome=result["outcome"], duration_ms=duration_ms)
     try:
         console_info(f"Classified as {result['outcome']}")
+    except Exception:
+        pass
+    try:
+        log_human(f"Classification completed: {result['outcome'].upper()}")
     except Exception:
         pass
     return result

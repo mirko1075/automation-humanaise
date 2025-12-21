@@ -20,7 +20,7 @@ from app.db.models import RawEvent, NormalizedEvent as NormalizedEventModel
 from app.core.classifier import classify
 from app.integrations.gmail_api import fetch_message as fetch_gmail_message
 from app.core.dispatcher import dispatch
-from app.monitoring.logger import log as app_log
+from app.monitoring.logger import log as app_log, log_human
 from app.core.normalizer import llm_service
 from app.monitoring.logger import console_info
 from app.monitoring.audit import audit_event as audit_event_fn
@@ -63,6 +63,11 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
     result_dto: Optional[NormalizedEventDTO] = None
 
     app_log("INFO", "normalizer.start", component="normalizer", raw_event_id=str(raw_event_id))
+        # Human-friendly operator message
+    try:
+        log_human("Normalization started")
+    except Exception:
+        pass
     try:
         await audit_event_fn("normalizer.start", None, None, {"raw_event_id": str(raw_event_id)})
     except Exception:
@@ -135,6 +140,13 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
 
                 outcome = classification.get("outcome") if isinstance(classification, dict) else None
                 reason = classification.get("reason") if isinstance(classification, dict) else None
+
+                # Human-friendly classification message
+                try:
+                    if outcome:
+                        log_human(f"Classification completed: {outcome.upper()}")
+                except Exception:
+                    pass
 
                 try:
                     safe_email_data = email_data if isinstance(email_data, dict) else {}

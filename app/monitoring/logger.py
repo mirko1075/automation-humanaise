@@ -4,6 +4,7 @@ Structured JSON logger for Edilcos Automation Backend.
 """
 import logging
 import json
+import os
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 def get_request_context():
@@ -41,7 +42,11 @@ class PlainFormatter(logging.Formatter):
 plain_handler = logging.StreamHandler()
 plain_handler.setFormatter(PlainFormatter())
 # Do not add plain_handler by default to avoid double output in some environments.
-# TODO(logging): make console logs optional via env flag
+# LOG_MODE controls human/plain logging: 'human', 'json', 'both'
+# Default: both
+LOG_MODE = os.getenv("LOG_MODE", "both").lower()
+
+# TODO(logging): make console logs optional via env flag (LOG_MODE implemented)
 
 
 # Keys reserved by LogRecord that must not be passed in `extra`
@@ -78,9 +83,28 @@ def console_info(message: str):
     This does not replace structured JSON logs; it's an additive convenience
     for humans watching the console. TODO: correlate with request_id.
     """
-    # Use plain handler temporarily to avoid changing global handlers list
+    # Compatibility: emit only when LOG_MODE is 'human' or 'both'
+    if LOG_MODE not in ("human", "both"):
+        return
     try:
         # Attach plain handler, emit, then detach to avoid duplicate outputs
+        logger.addHandler(plain_handler)
+        logger.info(message)
+    finally:
+        try:
+            logger.removeHandler(plain_handler)
+        except Exception:
+            pass
+
+
+def log_human(message: str):
+    """Short human-readable INFO line.
+
+    Respects `LOG_MODE` and is intended for operators watching the console.
+    """
+    if LOG_MODE not in ("human", "both"):
+        return
+    try:
         logger.addHandler(plain_handler)
         logger.info(message)
     finally:
