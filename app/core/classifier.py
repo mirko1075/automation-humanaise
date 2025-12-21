@@ -22,6 +22,9 @@ import time
 from app.monitoring.logger import log as app_log
 from app.monitoring.logger import console_info
 from app.monitoring.audit import audit_event as audit_event_fn
+from sqlalchemy import select, cast
+from sqlalchemy import String as _String
+from app.db.models import Quote
 
 KEYWORDS = ["preventivo", "ristrutturazione", "lavori", "offerta"]
 AUTO_REPLY_MARKERS = [
@@ -57,6 +60,15 @@ def _get_preventivo_repo(db):
     # In production, callers should pass a `db` that allows repository construction.
     # Example: return PreventivoRepository(db)
     raise NotImplementedError("_get_preventivo_repo must be patched in tests or implemented in runtime")
+
+
+async def _find_quote_by_protocol(db, tenant_id, protocollo):
+    """Return a Quote model if a Quote contains the protocollo in its quote_data."""
+    try:
+        res = await db.execute(select(Quote).where(Quote.tenant_id == tenant_id).where(cast(Quote.quote_data, _String).ilike(f"%{protocollo}%")))
+        return res.scalar_one_or_none()
+    except Exception:
+        return None
 
 
 async def classify(email_data: Dict[str, str], tenant_id: Optional[UUID], db) -> Dict[str, str]:
@@ -96,6 +108,22 @@ async def classify(email_data: Dict[str, str], tenant_id: Optional[UUID], db) ->
     combined = f"{subject} {body}".strip()
     if combined and _contains_any(combined, AUTO_REPLY_MARKERS):
         return {"outcome": "ignored", "reason": "auto_reply_text"}
+
+    # Rule 1.5: protocol-based follow_up (explicit protocol in email)
+    protocollo = None
+    if isinstance(email_data, dict):
+        protocollo = email_data.get("protocollo") or email_data.get("Protocollo")
+    if protocollo and db is not None:
+        try:
+            found = await _find_quote_by_protocol(db, tenant_id, protocollo)
+            if found:
+                try:
+                    console_info(f"preventivo loaded for protocol {protocollo}")
+                except Exception:
+                    pass
+                return {"outcome": "follow_up", "reason": "protocol_match", "protocollo": protocollo}
+        except Exception:
+            pass
 
     # Rule 2: follow_up (sender has open Preventivo)
     if from_email and db is not None:

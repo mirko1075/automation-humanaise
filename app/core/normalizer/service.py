@@ -22,6 +22,10 @@ from app.integrations.gmail_api import fetch_message as fetch_gmail_message
 from app.core.dispatcher import dispatch
 from app.monitoring.logger import log as app_log
 from app.core.normalizer import llm_service
+from app.monitoring.logger import console_info
+from app.monitoring.audit import audit_event as audit_event_fn
+from app.core.router import route_normalized_event
+import re
 
 
 
@@ -96,27 +100,45 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                     email_data.get("subject") or email_data.get("text_plain") or email_data.get("from_email") or email_data.get("from_name")
                 ):
                     msg_id = payload.get("messageId") or payload.get("message_id")
-                    if msg_id:
+                    access_token = payload.get("access_token") or payload.get("gmail_access_token")
+                    if msg_id and access_token:
                         try:
-                            fetched = await fetch_gmail_message(msg_id)
+                            fetched = await fetch_gmail_message(msg_id, access_token=access_token)
                             if isinstance(fetched, dict):
                                 email_data = fetched
                         except Exception:
                             pass
 
+                # Lightweight protocol extraction so downstream flows can use it
+                try:
+                    subj = (email_data.get("subject") or "") if isinstance(email_data, dict) else ""
+                    body_text = (email_data.get("body_text") or email_data.get("body_html") or "") if isinstance(email_data, dict) else ""
+                    proto_rx = re.compile(r"\b(?:protocollo|prot\.?|prot|p)[:\s]*([A-Za-z0-9\-/]+)\b", flags=re.IGNORECASE)
+                    m_proto = proto_rx.search(subj) or proto_rx.search(body_text)
+                    if m_proto and isinstance(email_data, dict):
+                        email_data["protocollo"] = m_proto.group(1)
+                        try:
+                            console_info(f"protocol found: {m_proto.group(1)}")
+                        except Exception:
+                            pass
+                except Exception:
+                    m_proto = None
+
                 # Prefer LLM-based classification when available, fall back to rule-based
                 try:
-                    classification = await llm_service.classify_event(email_data)
+                    safe_email_data = email_data if isinstance(email_data, dict) else {}
+                    classification = await llm_service.classify_event(safe_email_data)
                     if isinstance(classification, str):
                         classification = {"outcome": classification, "reason": "llm"}
                 except Exception:
-                    classification = await classify(email_data, raw.tenant_id, db)
+                    classification = await classify(email_data if isinstance(email_data, dict) else {}, getattr(raw, "tenant_id", None), db)
 
                 outcome = classification.get("outcome") if isinstance(classification, dict) else None
                 reason = classification.get("reason") if isinstance(classification, dict) else None
 
                 try:
-                    entities = await llm_service.extract_entities(email_data)
+                    safe_email_data = email_data if isinstance(email_data, dict) else {}
+                    entities = await llm_service.extract_entities(safe_email_data)
                 except Exception:
                     entities = None
 
@@ -128,14 +150,15 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                         "source": "email",
                         "classification": classification,
                         "email": email_data,
+                        "protocollo": (email_data.get("protocollo") if isinstance(email_data, dict) else None),
                         "entities": entities,
                         "customer": {
                             "email": (
-                                entities.get("email") if isinstance(entities, dict) and entities.get("email") else email_data.get("from_email")
+                                entities.get("email") if isinstance(entities, dict) and entities.get("email") else (email_data.get("from_email") if isinstance(email_data, dict) else None)
                             ),
                             "name": (
                                 (entities.get("nome") or entities.get("name") if isinstance(entities, dict) else None)
-                                or email_data.get("from_name")
+                                or (email_data.get("from_name") if isinstance(email_data, dict) else None)
                                 or ""
                             ),
                             "phone": (
@@ -158,13 +181,13 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                 await db.flush()
 
                 dto = NormalizedEventDTO(
-                    id=norm.id,
-                    tenant_id=norm.tenant_id,
-                    flow_id=norm.flow_id,
+                    id=getattr(norm, "id"),
+                    tenant_id=getattr(norm, "tenant_id"),
+                    flow_id=getattr(norm, "flow_id"),
                     outcome=outcome,
                     reason=reason,
-                    normalized_data=norm.normalized_data,
-                    raw_event_id=raw.id,
+                    normalized_data=getattr(norm, "normalized_data"),
+                    raw_event_id=getattr(raw, "id"),
                 )
 
                 try:
@@ -206,13 +229,13 @@ async def normalize_raw_event(raw_event_id: UUID) -> Optional[NormalizedEventDTO
                 existing_norm = res_dup.scalar_one_or_none()
                 if existing_norm:
                     result_dto = NormalizedEventDTO(
-                        id=existing_norm.id,
-                        tenant_id=existing_norm.tenant_id,
-                        flow_id=existing_norm.flow_id,
+                        id=getattr(existing_norm, "id"),
+                        tenant_id=getattr(existing_norm, "tenant_id"),
+                        flow_id=getattr(existing_norm, "flow_id"),
                         outcome=getattr(existing_norm, "outcome", "unknown"),
                         reason="duplicate_due_to_concurrency",
-                        normalized_data=existing_norm.normalized_data,
-                        raw_event_id=raw_event_id,
+                        normalized_data=getattr(existing_norm, "normalized_data"),
+                        raw_event_id=getattr(existing_norm, "raw_event_id"),
                     )
                 else:
                     raise

@@ -282,15 +282,77 @@ async def dispatch(event: Any, db) -> None:
         return
 
     if outcome == "follow_up":
-        # Only append ReceivedEmail log
+        # FOLLOW_UP handling: link to existing preventivo if protocollo present
+        protocollo = None
+        if isinstance(event.normalized_data, dict):
+            protocollo = event.normalized_data.get("protocollo") or event.normalized_data.get("Protocollo")
+
+        linked_quote = None
+        if protocollo:
+            try:
+                # Portable search: cast JSON to string and search for protocollo
+                from sqlalchemy import cast
+                from sqlalchemy import String as _String
+                res = await db.execute(select(Quote).where(Quote.tenant_id == tenant_id).where(cast(Quote.quote_data, _String).ilike(f"%{protocollo}%")))
+                linked_quote = res.scalar_one_or_none()
+                if linked_quote:
+                    try:
+                        console_info(f"preventivo loaded for protocol {protocollo}")
+                    except Exception:
+                        pass
+            except Exception:
+                linked_quote = None
+
+        # Attach link info to raw_payload for traceability (no schema change)
+        if linked_quote:
+            if isinstance(received_values.get("raw_payload"), dict):
+                received_values["raw_payload"]["linked_quote_id"] = str(linked_quote.id)
+            else:
+                received_values["raw_payload"] = {"linked_quote_id": str(linked_quote.id)}
+
+            # Conservative status update: if the quote is OPEN, move to IN_PROGRESS
+            try:
+                if getattr(linked_quote, "status", None) == "OPEN":
+                    await db.execute(Quote.__table__.update().where(Quote.id == linked_quote.id).values(status="IN_PROGRESS", updated_at=datetime.utcnow()))
+            except Exception:
+                # TODO: refine state machine mapping, possibly add PreventivoState helper
+                pass
+
+        # Insert ReceivedEmail log (linked or not)
         await db.execute(ReceivedEmail.__table__.insert().values(**received_values))
+
+        # If we linked to a quote, call Excel writer to update the row
+        if linked_quote:
+            try:
+                # Load customer for Excel update
+                res_c = await db.execute(select(Customer).where(Customer.id == linked_quote.customer_id))
+                linked_customer = res_c.scalar_one_or_none()
+                # Call Excel writer (file-based) — do not await long-running ops here, but keep minimal
+                from app.integrations.onedrive import excel_writer as ew
+                try:
+                    await ew.upsert_preventivo_row(linked_quote, linked_customer, tenant_id)
+                    try:
+                        console_info("excel updated")
+                    except Exception:
+                        pass
+                except Exception:
+                    # Log but don't raise
+                    app_log("ERROR", "excel update failed for linked follow_up", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id)
+                    # TODO: schedule retry/backoff for Excel updates
+            except Exception:
+                pass
+
         try:
             duration_ms = int((time.monotonic() - start_ts) * 1000)
             try:
-                await audit_event_fn("dispatch.completed", tenant_id, flow_id, {"raw_event_id": str(raw_event_id), "duration_ms": duration_ms, "outcome": outcome})
+                await audit_event_fn("dispatch.completed", tenant_id, flow_id, {"raw_event_id": str(raw_event_id), "duration_ms": duration_ms, "outcome": outcome, "linked_quote_id": str(getattr(linked_quote, "id", None)) if linked_quote else None})
             except Exception:
                 pass
-            app_log("INFO", "dispatch.completed", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, duration_ms=duration_ms)
+            app_log("INFO", "dispatch.completed", component="dispatcher", tenant_id=str(tenant_id), flow_id=flow_id, duration_ms=duration_ms, linked_quote_id=str(getattr(linked_quote, "id", None)) if linked_quote else None)
+            try:
+                console_info("Dispatcher executed")
+            except Exception:
+                pass
         except Exception:
             pass
         return
