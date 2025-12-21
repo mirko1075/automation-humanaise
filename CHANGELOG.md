@@ -1,4 +1,38 @@
 # Changelog
+
+## v1.5.0 — Human console logging + FOLLOW_UP by protocol (2025-12-21)
+
+### Added
+
+- `LOG_MODE` environment variable with values `human`, `json`, `both` (default: `both`) to toggle human-readable console logs alongside structured JSON logs.
+- `log_human(message: str)` helper for short, sequential human INFO lines used across the pipeline.
+
+### Changed
+
+- Added short human-readable messages for major pipeline steps: "Webhook received", "RawEvent saved", "Normalization started", "Classification completed: <OUTCOME>", "Excel updated on OneDrive", "Flow completed".
+- Protocol extraction in the normalizer enables `FOLLOW_UP` routing by matching `protocollo` values to existing `Quote` rows. Follow-up emails are linked to existing preventivi and trigger Excel row updates (no schema changes).
+
+### Notes
+
+- No DB schema changes. Conservative status updates applied where safe. TODOs added for retry/backoff and finer-grained state mapping.
+
+## v1.4.6 — Logging: human console mode + follow-up protocol support (2025-12-21)
+
+### Added
+
+- `LOG_MODE` environment flag to select console logging mode (`human`, `json`, `both`).
+- `log_human(message)` helper prints short human-readable INFO lines when `LOG_MODE` enables it.
+- Protocol extraction during normalization and protocol-based `FOLLOW_UP` routing: emails containing a `protocollo` (e.g. "Prot: 123/2025") are matched to existing `Quote` rows and routed as `follow_up`.
+
+### Changed
+
+- Added human-readable console messages for major pipeline steps (webhook, raw_event save, normalization, classification, dispatcher, OneDrive Excel updates).
+- `Preventivi` follow-up path now links received emails to existing quotes and updates Excel rows via the existing OneDrive helper.
+
+### Notes
+
+- No DB schema changes. Conservative status updates applied where safe. TODOs added for retry/backoff and finer-grained state mapping.
+
 ## v1.4.5 — Admin timeline search, OpenAPI & Postman updates (2025-12-21)
 
 ### Added
