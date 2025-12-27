@@ -30,16 +30,45 @@ class IMAPClient:
         self._conn: Optional[imaplib.IMAP4_SSL | imaplib.IMAP4] = None
 
     def connect(self):
-        if self._conn:
-            return
-        logger.info("connecting_imap", host=self.host, port=self.port)
-        if self.use_ssl:
-            self._conn = imaplib.IMAP4_SSL(self.host, self.port)
-        else:
-            self._conn = imaplib.IMAP4(self.host, self.port)
-        if self.user and self.password:
-            typ, data = self._conn.login(self.user, self.password)
-            logger.info("imap_login", result=typ)
+        print("IMAP CONNECT CALLED", self.host, self.user)
+        try:
+            self._connect_internal()
+        except Exception as e:
+            print("EXCEPTION in connect", e)
+            import traceback
+            traceback.print_exc()
+            logger.exception("imap_connection_exception")
+            raise
+
+    def _connect_internal(self):
+        try:
+            if self._conn:
+                return
+            logger.info("connecting_imap", **{"host": self.host, "port": self.port})
+            if not self.host:
+                raise ValueError("IMAP host must be provided (via argument or IMAP_HOST env var)")
+            if self.use_ssl:
+                self._conn = imaplib.IMAP4_SSL(self.host, self.port)
+            else:
+                self._conn = imaplib.IMAP4(self.host, self.port)
+            if self.user and self.password:
+                try:
+                    print("IMAP LOGIN CALLED", self.host, self.user, self.password)
+                    typ, data = self._conn.login(self.user, self.password)
+                    logger.info("imap_login", extra={"result": typ})
+                except imaplib.IMAP4.error as e:
+                    print("EXCEPTION in _connect_internal (login)", e)
+                    import traceback
+                    traceback.print_exc()
+                    logger.exception("imap_login_failed", extra={"user": self.user})
+                    raise
+            else:
+                raise ValueError("IMAP user and password must be provided (via env vars IMAP_USER and IMAP_PASSWORD)")
+        except Exception as e:
+            print("EXCEPTION in _connect_internal", e)
+            import traceback
+            traceback.print_exc()
+            raise
 
     def logout(self):
         if self._conn:
@@ -77,7 +106,7 @@ class IMAPClient:
     def fetch_uids_since(self, since_uid: Optional[int] = None) -> List[int]:
         """Return list of UIDs greater than since_uid. If since_uid is None, returns all UIDs."""
         assert self._conn, "IMAP not connected"
-        typ, data = self._conn.uid('SEARCH', None, 'ALL')
+        typ, data = self._conn.uid('SEARCH', 'ALL')
         if typ != 'OK':
             raise RuntimeError(f"UID SEARCH failed: {typ} {data}")
         if not data or not data[0]:
