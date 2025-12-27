@@ -1,31 +1,39 @@
 """Simple migration runner to apply SQL files in `migrations/` in alphabetical order.
-
-This is intentionally minimal and synchronous for local/dev use only.
-
-Usage:
-    source .venv/bin/activate
-    python3 scripts/apply_migrations.py
-
-It reads `DATABASE_URL` from environment or `.env` (if python-dotenv is available).
-"""
-from __future__ import annotations
 import os
 import sys
+import glob
 import asyncio
-from pathlib import Path
+import logging
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    pass
+if not logging.getLogger().hasHandlers():
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    )
+logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    print("ERROR: DATABASE_URL not set in environment (.env). Aborting.")
-    sys.exit(1)
+# ...existing code...
 
 from sqlalchemy import text
+    if not DATABASE_URL:
+        logger.error("DATABASE_URL not set in environment (.env). Aborting.")
+        sys.exit(1)
+    # ...existing code...
+    if not sql_files:
+        logger.info("No migration files found in migrations/")
+        return
+    logger.info(f"Applying {len(sql_files)} migrations to {DATABASE_URL}")
+    # ...existing code...
+    for sql_file in sql_files:
+        logger.info(f"Applying {sql_file.name}")
+        # ...existing code...
+        try:
+            # ...existing code...
+            logger.info(f"Applied {sql_file.name}")
+        except Exception as e:
+            logger.error(f"Failed applying {sql_file.name}: {e}")
+    logger.info("Migrations applied.")
 from sqlalchemy.ext.asyncio import create_async_engine
 
 

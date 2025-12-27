@@ -163,7 +163,7 @@ async def gmail_webhook(request: Request, background_tasks: BackgroundTasks):
             log("WARNING", "Invalid Pub/Sub envelope: missing 'message'", module="gmail_webhook", request_id=str(request_id))
             return JSONResponse(status_code=400, content={"error": "Invalid envelope", "request_id": request_id})
         data_b64 = envelope.get("data")
-        print("DATA B64:", data_b64)
+        log("DEBUG", "DATA B64 present", module="gmail_webhook", data_present=bool(data_b64))
         if not data_b64:
             log("WARNING", "Missing data in Pub/Sub envelope", module="gmail_webhook", request_id=str(request_id))
             return JSONResponse(status_code=400, content={"error": "Missing data", "request_id": request_id})

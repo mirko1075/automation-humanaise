@@ -26,6 +26,13 @@ class IMAPClient:
         self.port = port or int(os.environ.get("IMAP_PORT", "993"))
         self.user = os.environ.get("IMAP_USER")
         self.password = os.environ.get("IMAP_PASSWORD")
+        import logging
+        if not logging.getLogger().hasHandlers():
+            log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+            logging.basicConfig(
+                level=getattr(logging, log_level, logging.INFO),
+                format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+            )
         self.use_ssl = use_ssl
         self._conn: Optional[imaplib.IMAP4_SSL | imaplib.IMAP4] = None
 
@@ -44,11 +51,11 @@ class IMAPClient:
         try:
             if self._conn:
                 return
-            logger.info("connecting_imap", **{"host": self.host, "port": self.port})
+                logger.debug("IMAP CONNECT CALLED", extra={"host": self.host, "user": self.user})
             if not self.host:
                 raise ValueError("IMAP host must be provided (via argument or IMAP_HOST env var)")
             if self.use_ssl:
-                self._conn = imaplib.IMAP4_SSL(self.host, self.port)
+                    logger.exception("EXCEPTION in connect", extra={"error": str(e)})
             else:
                 self._conn = imaplib.IMAP4(self.host, self.port)
             if self.user and self.password:
@@ -67,11 +74,11 @@ class IMAPClient:
         except Exception as e:
             print("EXCEPTION in _connect_internal", e)
             import traceback
-            traceback.print_exc()
+                            logger.debug("IMAP LOGIN CALLED", extra={"host": self.host, "user": self.user})
             raise
 
     def logout(self):
-        if self._conn:
+                            logger.exception("EXCEPTION in _connect_internal (login)", extra={"error": str(e)})
             try:
                 self._conn.logout()
             except Exception:
@@ -79,7 +86,7 @@ class IMAPClient:
             finally:
                 self._conn = None
 
-    def select_mailbox(self, mailbox: str = "INBOX") -> Tuple[int, str]:
+                    logger.exception("EXCEPTION in _connect_internal", extra={"error": str(e)})
         """Select a mailbox and return (message_count, uidvalidity).
 
         Returns (message_count, uidvalidity)

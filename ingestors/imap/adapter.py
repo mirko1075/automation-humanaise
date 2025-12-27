@@ -35,7 +35,7 @@ def rawemail_to_inbound(raw: RawEmail) -> Dict[str, Any]:
     }
 
     # Simplify header mappings
-    headers = {k: v for k, v in raw.headers.items()} if getattr(raw, "headers", None) else {}
+    headers = {k: v for k, v in getattr(raw, "headers", {}).items()} if getattr(raw, "headers", None) else {}
 
     # Build attachments list per Appendix A
     attachments: List[Dict[str, Any]] = []

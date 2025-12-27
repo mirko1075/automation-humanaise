@@ -9,6 +9,10 @@ from uuid import uuid4
 import traceback
 
 from app.monitoring.logger import log
+from app.logging import configure_logging
+
+# Ensure logging is configured as early as possible
+configure_logging()
 from app.monitoring.audit import audit_event
 from app.monitoring.slack_alerts import send_slack_alert
 from app.monitoring.context import set_request_context
@@ -54,7 +58,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         "ERROR",
         f"Unhandled exception: {exc}",
         module="main",
-        request_id=request_id
+        request_id=request_id or ""
     )
     await audit_event(
         action="exception",
@@ -68,7 +72,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         context={"traceback": tb},
         severity="CRITICAL",
         module="main",
-        request_id=request_id
+        request_id=request_id or ""
     )
     return JSONResponse(
         status_code=500,

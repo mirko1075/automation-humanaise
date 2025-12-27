@@ -16,6 +16,8 @@ class GraphMailClient(BaseMailClient):
         self.auth = GraphAuthProvider()
         self.session = None
         self._connected = False
+        # Make tenant_id available to produced RawEmail instances
+        self.tenant_id = getattr(self.auth, "tenant_id", "graph")
 
     def connect(self):
         token = self.auth.get_access_token()
@@ -55,17 +57,45 @@ class GraphMailClient(BaseMailClient):
                 content_type=att.get("contentType"),
                 data=att.get("contentBytes", b"")
             ))
+        # extract body content intelligently
+        body = None
+        html = None
+        body_obj = msg.get("body", {}) or {}
+        if body_obj.get("contentType") == "text":
+            body = body_obj.get("content")
+        elif body_obj.get("contentType") == "html":
+            html = body_obj.get("content")
+
+        # recipients
+        to_list = [r.get("emailAddress", {}).get("address") for r in msg.get("toRecipients", [])]
+        cc_list = [r.get("emailAddress", {}).get("address") for r in msg.get("ccRecipients", [])]
+        bcc_list = [r.get("emailAddress", {}).get("address") for r in msg.get("bccRecipients", [])]
+
+        received = None
+        if msg.get("receivedDateTime"):
+            try:
+                received = datetime.fromisoformat(msg.get("receivedDateTime"))
+            except Exception:
+                received = None
+
         return RawEmail(
-            tenant_id="graph",  # or configurable
+            tenant_id=self.tenant_id,
             mailbox=self.mailbox,
-            uid=0,  # Graph does not use UID, can use hash or 0
+            uid=msg.get("id"),
             uidvalidity="graph",
             message_id=msg.get("id"),
             subject=msg.get("subject"),
             from_=msg.get("from", {}).get("emailAddress", {}).get("address"),
-            to=[r.get("emailAddress", {}).get("address") for r in msg.get("toRecipients", [])],
-            date=datetime.fromisoformat(msg.get("receivedDateTime")) if msg.get("receivedDateTime") else None,
-            text=msg.get("body", {}).get("content") if msg.get("body", {}).get("contentType") == "text" else None,
-            html=msg.get("body", {}).get("content") if msg.get("body", {}).get("contentType") == "html" else None,
-            attachments=attachments
+            to=to_list,
+            date=received,
+            text=body,
+            html=html,
+            attachments=attachments,
+            # populate adapter-required optional fields
+            event_id=msg.get("id"),
+            received_at=received,
+            cc=cc_list or None,
+            bcc=bcc_list or None,
+            headers=msg.get("internetMessageHeaders", None),
+            raw_payload=msg,
         )

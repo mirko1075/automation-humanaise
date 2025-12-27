@@ -10,10 +10,15 @@ from email.policy import default
 from typing import Tuple, List, Optional
 from datetime import datetime
 import logging
-
+import os
+if not logging.getLogger().hasHandlers():
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    )
 from .models import RawEmail, Attachment
-
-logger = logging.getLogger("ingestors.imap.parser")
+logger = logging.getLogger(__name__)
 
 
 def parse_rfc822(raw_bytes: bytes, tenant_id: str, mailbox: str, uid: int, uidvalidity: str) -> RawEmail:
@@ -22,6 +27,7 @@ def parse_rfc822(raw_bytes: bytes, tenant_id: str, mailbox: str, uid: int, uidva
     Prefers text/plain for `text`; `html` set if text/html present.
     Attachments are returned as list of `Attachment`.
     """
+    logger.debug("Parsing RFC822 message", extra={"tenant_id": tenant_id, "mailbox": mailbox, "uid": uid, "uidvalidity": uidvalidity})
     msg = email.message_from_bytes(raw_bytes, policy=default)
 
     subject = msg.get('Subject')

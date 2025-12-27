@@ -8,9 +8,35 @@ from app.config import settings
 
 class GraphAuthProvider:
     def __init__(self):
-        self.tenant_id = os.getenv("GRAPH_TENANT_ID") or getattr(settings, "GRAPH_TENANT_ID", None)
-        self.client_id = os.getenv("GRAPH_CLIENT_ID") or getattr(settings, "GRAPH_CLIENT_ID", None)
-        self.client_secret = os.getenv("GRAPH_CLIENT_SECRET") or getattr(settings, "GRAPH_CLIENT_SECRET", None)
+        # Allow either GRAPH_TENANT_ID or the generic TENANT_ID to be set in environment
+        self.tenant_id = (
+            os.getenv("GRAPH_TENANT_ID")
+            or os.getenv("TENANT_ID")
+            or getattr(settings, "GRAPH_TENANT_ID", None)
+            or getattr(settings, "TENANT_ID", None)
+        )
+
+        self.client_id = (
+            os.getenv("GRAPH_CLIENT_ID") or getattr(settings, "GRAPH_CLIENT_ID", None)
+        )
+        self.client_secret = (
+            os.getenv("GRAPH_CLIENT_SECRET") or getattr(settings, "GRAPH_CLIENT_SECRET", None)
+        )
+
+        # Validate required credentials before initializing msal to produce clearer errors
+        missing = []
+        if not self.tenant_id:
+            missing.append("GRAPH_TENANT_ID or TENANT_ID")
+        if not self.client_id:
+            missing.append("GRAPH_CLIENT_ID")
+        if not self.client_secret:
+            missing.append("GRAPH_CLIENT_SECRET")
+        if missing:
+            raise RuntimeError(
+                "Missing Microsoft Graph credentials: " + ", ".join(missing) + ". "
+                "Set these environment variables or configure them in app.config.settings."
+            )
+
         self._app = msal.ConfidentialClientApplication(
             self.client_id,
             authority=f"https://login.microsoftonline.com/{self.tenant_id}",

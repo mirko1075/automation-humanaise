@@ -4,6 +4,11 @@ Simple stub for LLM service used in tests.
 Provides `classify_event` and `extract_entities` functions.
 """
 from typing import Dict, Any
+import logging
+from app.logging import configure_logging
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 def classify_event(raw_event) -> str:
@@ -15,10 +20,10 @@ def classify_event(raw_event) -> str:
     subject = payload.get("subject", "") or ""
     body = payload.get("text_plain", "") or payload.get("body", "") or ""
     # Debug logging
-    print(f"[LLM DEBUG] payload type: {type(payload)}")
-    print(f"[LLM DEBUG] payload keys: {payload.keys() if isinstance(payload, dict) else 'not dict'}")
-    print(f"[LLM DEBUG] subject: {subject}")
-    print(f"[LLM DEBUG] body: {body[:100] if body else 'empty'}")
+    logger.debug("LLM payload type: %s", type(payload))
+    logger.debug("LLM payload keys: %s", (payload.keys() if isinstance(payload, dict) else 'not dict'))
+    logger.debug("LLM subject: %s", subject)
+    logger.debug("LLM body: %s", (body[:100] if body else 'empty'))
     if "preventivo" in subject.lower() or "prevent" in subject.lower():
         return "new_quote"
     if "preventivo" in body.lower():
