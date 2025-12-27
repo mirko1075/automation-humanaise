@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 import json
 import logging
 from sqlalchemy import create_engine, select, Column, Integer, String, LargeBinary, JSON, DateTime
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, declarative_base
 from sqlalchemy.sql import func
 
@@ -21,21 +22,41 @@ class IMAPRawEvent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(String, index=True, nullable=True)
     mailbox = Column(String, nullable=True)
-    uid = Column(Integer, nullable=True)
+    # `uid` can come from different providers. For IMAP it is an integer,
+    # but Graph returns opaque string ids. Use String to be provider-agnostic.
+    uid = Column(String, nullable=True)
     uidvalidity = Column(String, nullable=True)
     message_id = Column(String, index=True, nullable=True)
     raw = Column(LargeBinary, nullable=True)
-    # `metadata` is a reserved attribute name on Declarative base; use a different
-    # Python attribute name while keeping the DB column name as `metadata`.
-    metadata_json = Column("metadata", JSON, nullable=True)
+    # Historically the Alembic migration created the column `event_metadata`.
+    # Map the Python attribute `metadata_json` to that DB column name so the
+    # model matches the existing schema and avoids undefined-column errors.
+    metadata_json = Column("event_metadata", JSON, nullable=True)
     # Store original inbound payload (JSON/JSONB). Nullable and optional.
     raw_payload = Column(JSON, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    # The migration created a `received_at` timestamp column; map our
+    # `created_at` attribute to that column name for compatibility.
+    created_at = Column("received_at", DateTime, server_default=func.now())
 
 
 class IMAPRepository:
     def __init__(self, database_url: str):
-        self.engine = create_engine(database_url)
+        # If the configured URL uses an async driver (eg. 'postgresql+asyncpg'),
+        # coerce it to a sync driver by stripping the async fragment before
+        # creating the engine. This prevents SQLAlchemy from creating an async
+        # dialect that later raises `MissingGreenlet` when used synchronously.
+        try:
+            url_obj = make_url(database_url)
+            if "+asyncpg" in url_obj.drivername:
+                coerced_url = database_url.replace("+asyncpg", "")
+                logger.debug("coercing async DB URL to sync by removing +asyncpg")
+                self.engine = create_engine(coerced_url)
+                logger.info("created sync engine from async DB URL by coercion")
+            else:
+                self.engine = create_engine(database_url)
+        except Exception:
+            logger.exception("failed to create SQLAlchemy engine for IMAPRepository")
+            raise
         # Ensure local tables exist for this repository when used with a test sqlite DB
         try:
             Base.metadata.create_all(bind=self.engine)
@@ -53,7 +74,7 @@ class IMAPRepository:
             )
             return session.execute(stmt).first() is not None
 
-    def persist_raw(self, tenant_id: str, mailbox: str, uid: int, uidvalidity: str, raw_bytes: bytes, metadata: Dict[str, Any], raw_payload: Optional[dict] = None) -> Optional[int]:
+    def persist_raw(self, tenant_id: str, mailbox: str, uid: str | int, uidvalidity: str, raw_bytes: bytes, metadata: Dict[str, Any], raw_payload: Optional[dict] = None) -> Optional[int]:
         """
         Persist a raw IMAP message. Returns the inserted row id, or None if duplicate.
         """
@@ -93,7 +114,7 @@ class IMAPRepository:
         """
         raw_bytes = getattr(raw_email, "raw_bytes", None) or getattr(raw_email, "text", None) or b""
         mailbox = getattr(raw_email, "mailbox", None) or "INBOX"
-        uid = getattr(raw_email, "uid", None) or 0
+        uid = getattr(raw_email, "uid", None) or ""
         uidvalidity = getattr(raw_email, "uidvalidity", None) or ""
         # Use persist_raw which handles dedup; pass through raw_payload if present
         raw_payload = getattr(raw_email, "raw_payload", None)

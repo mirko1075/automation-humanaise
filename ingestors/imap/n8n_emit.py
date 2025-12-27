@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 import logging
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from app.config import settings
 from app.logging import configure_logging
@@ -47,11 +49,48 @@ def emit_to_n8n(inbound_message: Dict[str, Any]) -> None:
     uid = inbound_message.get("source", {}).get("message_uid")
     tenant = inbound_message.get("source", {}).get("account_id")
 
+    # Use a session with retries for idempotent/connection-failure scenarios
+    session = requests.Session()
+    # Retry on connection errors and 5xx server responses; do NOT retry on 4xx (e.g. 404)
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=("POST",),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
     try:
         logger.debug("Emitting to N8N", extra={"message_uid": uid, "tenant_id": tenant})
-        resp = requests.post(webhook_url, json=envelope, timeout=5)
-        resp.raise_for_status()
+        resp = session.post(webhook_url, json=envelope, timeout=5)
+
+        # If 4xx (client) error, surface clear log and do not retry
+        if 400 <= resp.status_code < 500:
+            response_snippet = f"n8n returned {resp.status_code} for url {webhook_url}: {resp.text[:200]}"
+            logger.error("n8n_emit_client_error", extra={"status_code": resp.status_code, "tenant_id": tenant, "event_id": event_id, "uid": uid, "response_snippet": response_snippet})
+            if resp.status_code == 404:
+                logger.error("n8n_emit_404_hint", extra={"hint": "Verify the configured N8N webhook path and that the workflow is active."})
+            logger.warning("n8n_emit_failed", extra={"status_code": resp.status_code, "tenant_id": tenant, "event_id": event_id, "uid": uid})
+            return
+
+        # For other statuses, raise for status to trigger retries if configured
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as he:
+            logger.exception("n8n_emit_http_error", extra={"error": str(he), "status_code": getattr(resp, 'status_code', None), "tenant_id": tenant, "event_id": event_id, "uid": uid})
+            logger.warning("n8n_emit_failed", extra={"error": str(he), "tenant_id": tenant, "event_id": event_id, "uid": uid})
+            return
+
         logger.info("n8n_emit_ok", extra={"tenant_id": tenant, "event_id": event_id, "uid": uid})
     except Exception as e:
+        # Network/connectivity errors etc.
         logger.exception("Exception during emit_to_n8n", extra={"error": str(e), "tenant_id": tenant, "event_id": event_id, "uid": uid})
         logger.warning("n8n_emit_failed", extra={"error": str(e), "tenant_id": tenant, "event_id": event_id, "uid": uid})
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
