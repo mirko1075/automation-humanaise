@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20251221_add_imap_raw_events'
-down_revision = None
+down_revision = '20251220_nullable_rawevent_tenant'
 branch_labels = None
 depends_on = None
 

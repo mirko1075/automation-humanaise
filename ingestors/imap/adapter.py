@@ -7,11 +7,11 @@ and leaves attachment storage_url as None (upload/deferred by other systems).
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from app.monitoring.logger import structlog
+from app.monitoring.logger import logger
 
 from ingestors.imap.models import RawEmail, Attachment
 
-logger = structlog.get_logger()
+logger = logger
 
 
 def rawemail_to_inbound(raw: RawEmail) -> Dict[str, Any]:

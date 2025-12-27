@@ -90,9 +90,15 @@ def run_migrations_online() -> None:
     # This keeps the application's DATABASE_URL usable (async) while allowing
     # Alembic to run using a sync driver.
     sync_url = url
-    if sync_url.startswith("postgresql+asyncpg://"):
-        # remove the +asyncpg part so SQLAlchemy uses a sync driver (psycopg)
+    # Convert a few known async dialects to their sync counterparts so Alembic
+    # can create a synchronous engine. Common cases used in this project are
+    # `postgresql+asyncpg://` and `sqlite+aiosqlite://`.
+    # This is intentionally conservative and only strips async driver markers.
+    if "+asyncpg" in sync_url:
         sync_url = sync_url.replace("+asyncpg", "")
+    if "+aiosqlite" in sync_url:
+        sync_url = sync_url.replace("+aiosqlite", "")
+    # Other async dialect markers can be added here if needed in future.
     connectable = create_engine(sync_url)
 
     with connectable.connect() as connection:
