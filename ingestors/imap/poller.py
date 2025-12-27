@@ -82,7 +82,9 @@ class IMAPPoller:
                 except Exception:
                     logger.exception("failed_recording_fetch_error")
                 continue
+
             # Quick dedupe check by repository
+            try:
                 if repo.exists(self.tenant_id, self.mailbox, uid, uidvalidity):
                     logger.info("skip_duplicate", tenant_id=self.tenant_id, uid=uid)
                     continue

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.6.1 — IMAP ingestor: small fixes (2025-12-27)
+
+### Fixed
+
+- Fix indentation bug in `ingestors/imap/poller.py` so fetched messages are processed (dedupe, parse, persist).
+- Add `ingestors/imap/adapter.py` providing a pure mapping from `RawEmail` to the Normalizer's `InboundMessage` shape. Attachments have `storage_url: null` (upload deferred).
+
+### Notes
+
+- These are minimal, non-behavioral fixes requested to stabilize the ingestor implementation before end-to-end integration testing. No downstream wiring or additional feature work performed.
+
 ## v1.6.0 — IMAP ingestor (2025-12-21)
 
 ### Added
